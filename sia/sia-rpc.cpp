@@ -1,4 +1,4 @@
-#include <ccminer-config.h>
+#include <gbxminer-config.h>
 
 #include <stdio.h>
 #include <stdlib.h>

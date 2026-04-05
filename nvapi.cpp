@@ -3,6 +3,7 @@
  * based on the work of https://github.com/ircubic/lib_gpu
  *
  * tpruvot@ccminer.org 06-2016
+ * d0wn3d@gbxminer.org 04-2026
  */
 
 #ifdef _WIN32
@@ -11,7 +12,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "compat/nvapi/nvapi_ccminer.h"
+#include "compat/nvapi/nvapi_gbxminer.h"
 
 class NvAPILibraryHandle
 {

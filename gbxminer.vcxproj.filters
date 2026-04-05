@@ -150,7 +150,7 @@
     <ClCompile Include="util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ccminer.cpp">
+    <ClCompile Include="gbxminer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pools.cpp">
@@ -386,7 +386,7 @@
     <ClInclude Include="compat\stdbool.h">
       <Filter>Header Files\compat</Filter>
     </ClInclude>
-    <ClInclude Include="compat\ccminer-config.h">
+    <ClInclude Include="compat\gbxminer-config.h">
       <Filter>Header Files\compat</Filter>
     </ClInclude>
     <ClInclude Include="uint256.h">
@@ -479,7 +479,7 @@
     <ClInclude Include="nvml.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="compat\nvapi\nvapi_ccminer.h">
+    <ClInclude Include="compat\nvapi\nvapi_gbxminer.h">
       <Filter>Header Files\compat\nvapi</Filter>
     </ClInclude>
     <ClInclude Include="compat\nvapi\nvapi_lite_sli.h">
@@ -1047,12 +1047,12 @@
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\ccminer.ico">
+    <Image Include="res\gbxminer.ico">
       <Filter>Ressources</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="res\ccminer.rc">
+    <ResourceCompile Include="res\gbxminer.rc">
       <Filter>Ressources</Filter>
     </ResourceCompile>
   </ItemGroup>

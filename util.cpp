@@ -2,6 +2,7 @@
  * Copyright 2010 Jeff Garzik
  * Copyright 2012-2014 pooler
  * Copyright 2014 ccminer team
+ * Copyright 2026-2027 d0wn3d@github
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -10,7 +11,7 @@
  */
 
 //#define _GNU_SOURCE
-#include <ccminer-config.h>
+#include <gbxminer-config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -142,7 +143,7 @@ void applog(int prio, const char *fmt, ...)
 			use_colors ? CL_N : ""
 		);
 		if (prio == LOG_RAW) {
-			// no time prefix, for ccminer -n
+			// no time prefix, for gbxminer -n
 			sprintf(f, "%s%s\n", fmt, CL_N);
 		}
 		pthread_mutex_lock(&applog_lock);
@@ -192,13 +193,13 @@ void get_defconfig_path(char *out, size_t bufsize, char *argv0)
 	const char *sep = strstr(dir, "\\") ? "\\" : "/";
 	struct stat info;
 #ifdef WIN32
-	snprintf(out, bufsize, "%s\\ccminer\\ccminer.conf\0", getenv("APPDATA"));
+	snprintf(out, bufsize, "%s\\gbxminer\\gbxminer.conf\0", getenv("APPDATA"));
 #else
-	snprintf(out, bufsize, "%s\\.ccminer\\ccminer.conf", getenv("HOME"));
+	snprintf(out, bufsize, "%s\\.gbxminer\\gbxminer.conf", getenv("HOME"));
 #endif
 	if (dir && stat(out, &info) != 0) {
 		// binary folder if not present in user folder
-		snprintf(out, bufsize, "%s%sccminer.conf%s", dir, sep, "");
+		snprintf(out, bufsize, "%s%sgbxminer.conf%s", dir, sep, "");
 	}
 	if (stat(out, &info) != 0) {
 		out[0] = '\0';
@@ -293,7 +294,7 @@ static size_t upload_data_cb(void *ptr, size_t size, size_t nmemb,
 static int seek_data_cb(void *user_data, curl_off_t offset, int origin)
 {
 	struct upload_buffer *ub = (struct upload_buffer *)user_data;
-	
+
 	switch (origin) {
 	case SEEK_SET:
 		ub->pos = (size_t)offset;
@@ -385,7 +386,7 @@ static int sockopt_keepalive_cb(void *userdata, curl_socket_t fd,
 	DWORD outputBytes;
 #endif
 
-#ifndef WIN32	
+#ifndef WIN32
 	if (unlikely(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive,
 		sizeof(keepalive))))
 		return 1;
@@ -409,7 +410,7 @@ static int sockopt_keepalive_cb(void *userdata, curl_socket_t fd,
 	struct tcp_keepalive vals;
 	vals.onoff = 1;
 	vals.keepalivetime = tcp_keepidle * 1000;
-	vals.keepaliveinterval = tcp_keepintvl * 1000;	
+	vals.keepaliveinterval = tcp_keepintvl * 1000;
 	if (unlikely(WSAIoctl(fd, SIO_KEEPALIVE_VALS, &vals, sizeof(vals),
 		NULL, 0, &outputBytes, NULL, NULL)))
 		return 1;
@@ -788,7 +789,7 @@ bool fulltest(const uint32_t *hash, const uint32_t *target)
 {
 	int i;
 	bool rc = true;
-	
+
 	for (i = 7; i >= 0; i--) {
 		if (hash[i] > target[i]) {
 			rc = false;
@@ -806,7 +807,7 @@ bool fulltest(const uint32_t *hash, const uint32_t *target)
 	if ((!rc && opt_debug) || opt_debug_diff) {
 		uint32_t hash_be[8], target_be[8];
 		char *hash_str, *target_str;
-		
+
 		for (i = 0; i < 8; i++) {
 			be32enc(hash_be + i, hash[7 - i]);
 			be32enc(target_be + i, target[7 - i]);
@@ -882,7 +883,7 @@ double target_to_diff(uint32_t* target)
 static bool send_line(curl_socket_t sock, char *s)
 {
 	ssize_t len, sent = 0;
-	
+
 	len = (ssize_t)strlen(s);
 	s[len++] = '\n';
 
@@ -1597,7 +1598,7 @@ static bool stratum_reconnect(struct stratum_ctx *sctx, json_t *params)
 		port = (int) json_integer_value(port_val);
 	if (!host || !port)
 		return false;
-	
+
 	free(sctx->url);
 	sctx->url = (char*)malloc(32 + strlen(host));
 	sprintf(sctx->url, "stratum+tcp://%s:%d", host, port);
@@ -1800,7 +1801,7 @@ static bool stratum_show_message(struct stratum_ctx *sctx, json_t *id, json_t *p
 	val = json_array_get(params, 0);
 	if (val)
 		applog(LOG_NOTICE, "MESSAGE FROM SERVER: %s", json_string_value(val));
-	
+
 	if (!id || json_is_null(id))
 		return true;
 
@@ -1883,13 +1884,13 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s)
 		ret = stratum_reconnect(sctx, params);
 		goto out;
 	}
-	if (!strcasecmp(method, "client.get_algo")) { // ccminer only yet!
+	if (!strcasecmp(method, "client.get_algo")) { // gbxminer only yet!
 		// will prevent wrong algo parameters on a pool, will be used as test on rejects
 		if (!opt_quiet) applog(LOG_NOTICE, "Pool asked your algo parameter");
 		ret = stratum_get_algo(sctx, id, params);
 		goto out;
 	}
-	if (!strcasecmp(method, "client.get_stats")) { // ccminer/yiimp only yet!
+	if (!strcasecmp(method, "client.get_stats")) { // gbxminer/yiimp only yet!
 		// optional to fill device benchmarks
 		ret = stratum_get_stats(sctx, id, params);
 		goto out;

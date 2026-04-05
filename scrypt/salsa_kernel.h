@@ -12,7 +12,7 @@
 
 #include "miner.h"
 
-// from ccminer.cpp
+// from gbxminer.cpp
 extern short device_map[MAX_GPUS];
 extern int device_batchsize[MAX_GPUS]; // cudaminer -b
 extern int device_interactive[MAX_GPUS]; // cudaminer -i

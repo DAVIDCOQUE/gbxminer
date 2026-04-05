@@ -12,6 +12,7 @@
  *
  * Copyright (c) 2016 John Tromp, Marc Bevand
  * Copyright (c) 2017 djeZo, Tanguy Pruvot (GPL v3)
+ * Copyright (c) 2026 d0wn3d, Antonio Moratti (GPL v3)
  */
 
 #ifdef WIN32
@@ -2079,7 +2080,7 @@ __host__ void eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::solve(const char *t
 		solutionf(thread_id, index_vector, DIGITBITS, nullptr);
 	}
 
-	// ccminer: only use hashdonef if no solutions...
+	// gbxminer: only use hashdonef if no solutions...
 	if (!solutions->nsols)
 		hashdonef(thread_id);
 }

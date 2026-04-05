@@ -234,29 +234,29 @@ Wildkeccak specific:
 
 
 Example for Heavycoin Mining on heavycoinpool.com with a single gpu in your system
-    ccminer -t 1 -a heavy -o stratum+tcp://stratum01.heavycoinpool.com:5333 -u <<username.worker>> -p <<workerpassword>> -v 8
+    gbxminer -t 1 -a heavy -o stratum+tcp://stratum01.heavycoinpool.com:5333 -u <<username.worker>> -p <<workerpassword>> -v 8
 
 
 Example for Heavycoin Mining on hvc.1gh.com with a dual gpu in your system
-    ccminer -t 2 -a heavy -o stratum+tcp://hvcpool.1gh.com:5333/ -u <<WALLET>> -p x -v 8
+    gbxminer -t 2 -a heavy -o stratum+tcp://hvcpool.1gh.com:5333/ -u <<WALLET>> -p x -v 8
 
 
 Example for Fuguecoin solo-mining with 4 gpu's in your system and a Fuguecoin-wallet running on localhost
-    ccminer -q -s 1 -t 4 -a fugue256 -o http://localhost:9089/ -u <<myusername>> -p <<mypassword>>
+    gbxminer -q -s 1 -t 4 -a fugue256 -o http://localhost:9089/ -u <<myusername>> -p <<mypassword>>
 
 
 Example for Fuguecoin pool mining on dwarfpool.com with all your GPUs
-    ccminer -q -a fugue256 -o stratum+tcp://erebor.dwarfpool.com:3340/ -u YOURWALLETADDRESS.1 -p YOUREMAILADDRESS
+    gbxminer -q -a fugue256 -o stratum+tcp://erebor.dwarfpool.com:3340/ -u YOURWALLETADDRESS.1 -p YOUREMAILADDRESS
 
 
 Example for Groestlcoin solo mining
-    ccminer -q -s 1 -a groestl -o http://127.0.0.1:1441/ -u USERNAME -p PASSWORD
+    gbxminer -q -s 1 -a groestl -o http://127.0.0.1:1441/ -u USERNAME -p PASSWORD
 
 Example for Boolberry
-    ccminer -a wildkeccak -o stratum+tcp://bbr.suprnova.cc:7777 -u tpruvot.donate -p x -k http://bbr.suprnova.cc/scratchpad.bin -l 64x360
+    gbxminer -a wildkeccak -o stratum+tcp://bbr.suprnova.cc:7777 -u tpruvot.donate -p x -k http://bbr.suprnova.cc/scratchpad.bin -l 64x360
 
 Example for Scrypt-N (2048) on Nicehash
-    ccminer -a scrypt:10 -o stratum+tcp://stratum.nicehash.com:3335 -u 3EujYFcoBzWvpUEvbe3obEG95mBuU88QBD -p x
+    gbxminer -a scrypt:10 -o stratum+tcp://stratum.nicehash.com:3335 -u 3EujYFcoBzWvpUEvbe3obEG95mBuU88QBD -p x
 
 For solo-mining you typically use -o http://127.0.0.1:xxxx where xxxx represents
 the rpcport number specified in your wallet's .conf file and you have to pass the same username
@@ -273,7 +273,7 @@ This allow you to run the miner without batch/script.
 
 >>> API and Monitoring <<<
 
-With the -b parameter you can open your ccminer to your network, use -b 0.0.0.0:4068 if required.
+With the -b parameter you can open your gbxminer to your network, use -b 0.0.0.0:4068 if required.
 On windows, setting 0.0.0.0 will ask firewall permissions on the first launch. Its normal.
 
 Default API feature is only enabled for localhost queries by default, on port 4068.

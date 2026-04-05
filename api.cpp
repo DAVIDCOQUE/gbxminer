@@ -951,7 +951,7 @@ static void mcast()
 	bool addrok;
 	char group;
 
-	char expect[] = "ccminer-"; // first 8 bytes constant
+	char expect[] = "gbxminer-"; // first 8 bytes constant
 	char *expect_code;
 	size_t expect_code_len;
 	char buf[1024];

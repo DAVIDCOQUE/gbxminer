@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v8
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag ccminer:latest --no-cache
+      run: docker build . --file Dockerfile --tag gbxminer:latest --no-cache
     - name: Docker image list
       run: docker images

@@ -3,7 +3,7 @@
  *
  * Public Domain or MIT License, whichever is easier
  *
- * Adapted to ccminer by tpruvot@github (2015)
+ * Adapted to gbxminer by d0wn3d@github (2026)
  */
 
 #include "miner.h"

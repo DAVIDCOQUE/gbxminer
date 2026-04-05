@@ -12,6 +12,7 @@
  *
  * John E. Stone - john.stone@gmail.com
  * Tanguy Pruvot - tpruvot@github
+ * Antonio Moratti - d0wn3d@github
  *
  */
 
@@ -56,7 +57,7 @@ extern bool need_memclockrst;
 	static void *wrap_dlopen(const char *filename) {
 		HMODULE h = LoadLibrary(filename);
 		if (!h && opt_debug) {
-			applog(LOG_DEBUG, "dlopen(%d): failed to load %s", 
+			applog(LOG_DEBUG, "dlopen(%d): failed to load %s",
 				GetLastError(), filename);
 		}
 		return (void*)h;
@@ -75,7 +76,7 @@ extern bool need_memclockrst;
 	static void *wrap_dlopen(const char *filename) {
 		void *h = dlopen(filename, RTLD_NOW);
 		if (h == NULL && opt_debug) {
-			applog(LOG_DEBUG, "dlopen(%d): failed to load %s", 
+			applog(LOG_DEBUG, "dlopen(%d): failed to load %s",
 				errno, filename);
 		}
 		return (void*)h;
@@ -564,7 +565,7 @@ uint32_t nvml_get_plimit(nvml_handle *nvmlh, int dev_id)
 	return plimit;
 }
 
-// ccminer -D -n
+// gbxminer -D -n
 #define LSTDEV_PFX "        "
 void nvml_print_device_info(int dev_id)
 {
@@ -835,7 +836,7 @@ int nvml_destroy(nvml_handle *nvmlh)
  * nvml api doesn't exists as 32bit dll :///
  */
 #ifdef WIN32
-#include "nvapi/nvapi_ccminer.h"
+#include "nvapi/nvapi_gbxminer.h"
 
 static unsigned int nvapi_dev_map[MAX_GPUS] = { 0 };
 static NvDisplayHandle hDisplay_a[NVAPI_MAX_PHYSICAL_GPUS * 2] = { 0 };

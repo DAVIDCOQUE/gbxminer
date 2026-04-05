@@ -8,7 +8,7 @@ JANSSON_INCLUDES=
 endif
 
 EXTRA_DIST		= autogen.sh README.md README.txt LICENSE.txt \
-			  ccminer.sln ccminer.vcxproj ccminer.vcxproj.filters \
+			  gbxminer.sln gbxminer.vcxproj gbxminer.vcxproj.filters \
 			  compat/gettimeofday.c compat/getopt/getopt_long.c
 
 SUBDIRS = compat

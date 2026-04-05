@@ -2,6 +2,7 @@
  * Copyright 2010 Jeff Garzik
  * Copyright 2012-2014 pooler
  * Copyright 2014-2017 tpruvot
+ * Copyright 2026-2027 d0wn3d
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -9,7 +10,7 @@
  * any later version.  See COPYING for more details.
  */
 
-#include <ccminer-config.h>
+#include <gbxminer-config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,7 +56,7 @@
 BOOL WINAPI ConsoleHandler(DWORD);
 #endif
 
-#define PROGRAM_NAME		"ccminer"
+#define PROGRAM_NAME		"gbxminer"
 #define LP_SCANTIME		60
 #define HEAVYCOIN_BLKHDR_SZ		84
 #define MNR_BLKHDR_SZ 80
@@ -518,7 +519,7 @@ struct work _ALIGN(64) g_work;
 volatile time_t g_work_time;
 pthread_mutex_t g_work_lock;
 
-// get const array size (defined in ccminer.cpp)
+// get const array size (defined in gbxminer.cpp)
 int options_count()
 {
 	int n = 0;
@@ -1614,7 +1615,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 #endif
 			sha256d(merkle_root, merkle_root, 64);
 	}
-	
+
 	/* Increment extranonce2 */
 	for (i = 0; i < (int)sctx->xnonce2_size && !++sctx->job.xnonce2[i]; i++);
 
@@ -2657,7 +2658,7 @@ static void *miner_thread(void *userdata)
 			switch (opt_algo) {
 				case ALGO_JACKPOT:
 				case ALGO_QUARK:
-					// to stay comparable to other ccminer forks or pools
+					// to stay comparable to other gbxminer forks or pools
 					rate_factor = 0.5;
 					break;
 			}
@@ -3081,7 +3082,7 @@ wait_stratum_url:
 			}
 			pthread_mutex_unlock(&g_work_lock);
 		}
-		
+
 		// check we are on the right pool
 		if (switchn != pool_switch_count) goto pool_switched;
 
