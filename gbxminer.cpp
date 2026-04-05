@@ -1011,15 +1011,6 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 			be32enc(&ntime, work->data[17]);
 			be32enc(&nonce, work->data[19]);
 			break;
-		case ALGO_NEOSCRYPT:
-			/* scanhash_neoscrypt stores the found nonce in work->nonces[0]
-			 * and advances pdata[19] to nonces[0]+1 as a scan cursor.
-			 * Reading work->data[19] here would submit cursor+1 (wrong nonce),
-			 * causing the pool to hash a different header and reject every share
-			 * as "Low difficulty share". Use work->nonces[idnonce] instead. */
-			le32enc(&ntime, work->data[17]);
-			le32enc(&nonce, work->nonces[idnonce]);
-			break;
 		default:
 			le32enc(&ntime, work->data[17]);
 			le32enc(&nonce, work->data[19]);
