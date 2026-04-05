@@ -1,6 +1,10 @@
 
-ccminer
+gbxminer
 *.o
+*~
+
+configure~
+stubs.cpp
 
 autom4te.cache
 .deps
