@@ -1,8 +1,8 @@
-AC_INIT([ccminer], [2.3.2], [], [ccminer], [http://github.com/tpruvot/ccminer])
+AC_INIT([gbxminer], [1.0.0], [], [gbxminer], [http://github.com/d0wn3d/gbxminer])
 
 AC_PREREQ([2.59c])
 AC_CANONICAL_SYSTEM
-AC_CONFIG_SRCDIR([ccminer.cpp])
+AC_CONFIG_SRCDIR([gbxminer.cpp])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS([ccminer-config.h])
 

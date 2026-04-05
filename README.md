@@ -1,36 +1,69 @@
-# ccminer
+# GBXminer - Fastest NeoScrypt Miner
 
-Based on Christian Buchner's &amp; Christian H.'s CUDA project, no more active on github since 2014.
+**GBXminer** is the fastest NeoScrypt nVidia GPU miner, built from a fork of ccminer (by tpruvot).
 
-Check the [README.txt](README.txt) for the additions
+## Features
 
-BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)
+- Optimized for NeoScrypt algorithm only (for now)
+- Support for all modern nVidia GPUs (GTX 900 series to RTX 5090)
+- Built with CUDA 12 for maximum performance
+- Linux optimized (tested on Ubuntu 24.04)
 
-A part of the recent algos were originally written by [djm34](https://github.com/djm34) and [alexis78](https://github.com/alexis78)
+## Performance
 
-This variant was tested and built on Linux (ubuntu server 14.04, 16.04, Fedora 22 to 25)
-It is also built for Windows 7 to 10 with VStudio 2013, to stay compatible with Windows 7 and Vista.
+GBXminer is designed to be the fastest NeoScrypt miner available on GitHub, with:
+- Optimized CUDA kernels
+- Support for all major GPU architectures
+- Efficient memory management
 
-Note that the x86 releases are generally faster than x64 ones on Windows, but that tend to change with the recent drivers.
+## Supported nVidia Architectures
 
-The recommended CUDA Toolkit version was the [6.5.19](http://developer.download.nvidia.com/compute/cuda/6_5/rel/installers/cuda_6.5.19_windows_general_64.exe), but some light algos could be faster with the version 7.5 and 8.0 (like lbry, decred and skein).
+| Architecture | GPUs |
+|--------------|------|
+| sm_30 | Kepler (GTX 600 series) |
+| sm_35 | Kepler (GTX 700 series) |
+| sm_37 | Kepler (Tesla K80) |
+| sm_50 | GTX 900 series |
+| sm_52 | Maxwell GM20x |
+| sm_53 | Maxwell (Tegra X1) |
+| sm_60 | GTX 1000 series |
+| sm_61 | Pascal GP104/106 |
+| sm_62 | Pascal GP100 |
+| sm_70 | Volta (V100) |
+| sm_72 | Volta (faster) |
+| sm_75 | Turing (RTX 2000 series) |
+| sm_80 | Ampere A100 |
+| sm_86 | Ampere (RTX 3000 series) |
+| sm_87 | Ampere (Tesla A30) |
+| sm_89 | Ada Lovelace (RTX 4000 series) |
+| sm_90 | Hopper (H100, RTX 5000 series) |
 
-About source code dependencies
-------------------------------
+## Build Requirements
 
-This project requires some libraries to be built :
+- CUDA Toolkit 12.0+
+- OpenSSL
+- Curl
+- pthreads
 
-- OpenSSL (prebuilt for win)
-- Curl (prebuilt for win)
-- pthreads (prebuilt for win)
+### Compile on Linux
 
-The tree now contains recent prebuilt openssl and curl .lib for both x86 and x64 platforms (windows).
+```bash
+./autogen.sh
+./configure
+make
+```
 
-To rebuild them, you need to clone this repository and its submodules :
-    git clone https://github.com/peters/curl-for-windows.git compat/curl-for-windows
+## Usage
 
+```bash
+./gbxminer -a neoscrypt -o pool-url -u wallet-address -p password
+```
 
-Compile on Linux
-----------------
+## Donation
 
-Please see [INSTALL](https://github.com/tpruvot/ccminer/blob/linux/INSTALL) file or [project Wiki](https://github.com/tpruvot/ccminer/wiki/Compatibility)
+BTC: 1JZTdGfCAgRmLo4vsgMTJ57dCiDT24gT6f (d0wn3d)
+
+This project was built on the shoulders of giants:
+- Original CUDA project by Christian Buchner & Christian H.
+- ccminer by Tanguy Pruvot
+- Additional algos by djm34 and alexis78
