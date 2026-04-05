@@ -1,3 +1,4 @@
+
 // originally from djm34 - github.com/djm34/ccminer-sp-neoscrypt
 // kernel code from Nanashi Meiyo-Meijin 1.7.6-r10 (July 2016)
 

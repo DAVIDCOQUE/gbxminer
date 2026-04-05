@@ -4,4 +4,3 @@ SUBDIRS	= jansson
 else
 SUBDIRS	=
 endif
-
