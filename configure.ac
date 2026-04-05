@@ -137,18 +137,17 @@ AM_CONDITIONAL([HAVE_NVML], [test -n "$with_nvml"])
 NVCC="nvcc"
 
 if test -n "$with_cuda" ; then
-  CUDA_LOCAL_PATH=$with_cuda
+  CUDA_INCLUDES="-I$with_cuda/include"
+  CUDA_LIBS="-lcudart"
+  CUDA_LDFLAGS="-L$with_cuda/lib$SUFFIX"
   if test -x "$with_cuda/bin/nvcc" ; then
     NVCC="$with_cuda/bin/nvcc"
   fi
 else
-  CUDA_LOCAL_PATH=/usr/local/cuda
+  CUDA_INCLUDES="-I/usr/local/cuda/include"
+  CUDA_LIBS="-lcudart -static-libstdc++"
+  CUDA_LDFLAGS="-L/usr/local/cuda/lib$SUFFIX"
 fi
-AC_SUBST(CUDA_LOCAL_PATH)
-
-CUDA_INCLUDES="-I$CUDA_LOCAL_PATH/include"
-CUDA_LDFLAGS="-L$CUDA_LOCAL_PATH/lib64 -L/usr/lib/x86_64-linux-gnu"
-CUDA_LIBS="-lcudart -lcuda -ldl -lrt"
 
 if test -n "$with_nvml" ; then
   NVML_LIBPATH=$with_nvml
