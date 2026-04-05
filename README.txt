@@ -1,103 +1,115 @@
 
-ccminer 2.3.1                     "lyra2v3, exosis and sha256q"
+GBXminer 1.0.0                    "NeoScrypt - Fastest Miner"
 ---------------------------------------------------------------
 
 ***************************************************************
 If you find this tool useful and like to support its continuous
           development, then consider a donation.
 
-tpruvot@github:
+d0wn3d@github:
+  BTC  : 1JZTdGfCAgRmLo4vsgMTJ57dCiDT24gT6f
+
+Original ccminer by tpruvot:
   BTC  : 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo
-  DCR  : DsUCcACGcyP8McNMRXQwbtpDxaVUYLDQDeU
-
-DJM34:
-  BTC donation address: 1NENYmxwZGHsKFmyjTc5WferTn5VTFb7Ze
-
-cbuchner v1.2:
-  LTC donation address: LKS1WDKGED647msBQfLBHV3Ls8sveGncnm
-  BTC donation address: 16hJF5mceSojnTD3ZTUDqdRhDyPJzoRakM
 
 ***************************************************************
 
 >>> Introduction <<<
 
-This is a CUDA accelerated mining application which handle :
+GBXminer is a CUDA accelerated mining application focused on NeoScrypt.
 
-Decred (Blake256 14-rounds - 180 bytes)
-HeavyCoin & MjollnirCoin
-FugueCoin
-GroestlCoin & Myriad-Groestl
-Lbry Credits
-JackpotCoin (JHA)
-QuarkCoin family & AnimeCoin
-TalkCoin
-DarkCoin and other X11 coins
-Chaincoin and Flaxscript (C11)
-Saffroncoin blake (256 14-rounds)
-BlakeCoin (256 8-rounds)
-Qubit (Digibyte, ...)
-Luffa (Joincoin)
-Keccak (Maxcoin)
-Pentablake (Blake 512 x5)
-1Coin Triple S
-Neoscrypt (FeatherCoin)
-x11evo (Revolver)
-phi2 (LUXCoin)
-Scrypt and Scrypt:N
-Scrypt-Jane (Chacha)
-sib (Sibcoin)
-Skein (Skein + SHA)
-Signatum (Skein cubehash fugue Streebog)
-SonoA (Sono)
-Tribus (JH, keccak, simd)
-Woodcoin (Double Skein)
-Vanilla (Blake256 8-rounds - double sha256)
-Vertcoin Lyra2REv3
-Boolberry (Wild Keccak)
-Monero (Cryptonight v7 with -a monero)
-Aeon (Cryptonight-lite)
+This version supports:
+- NeoScrypt (GoByte, FeatherCoin, Trezarcoin, Orbitcoin, etc)
 
 
->>> Command Line Interface <<<
-
-The code is based on the pooler cpuminer and inherits
-its command line interface and options.
+>>> Supported Algorithms <<<
 
   -a, --algo=ALGO       specify the algorithm to use
-                          allium      use to mine Garlic
-                          bastion     use to mine Joincoin
-                          bitcore     use to mine Bitcore's Timetravel10
-                          blake       use to mine Saffroncoin (Blake256)
-                          blakecoin   use to mine Old Blake 256
-                          blake2s     use to mine Nevacoin (Blake2-S 256)
-                          bmw         use to mine Midnight
-                          cryptolight use to mine AEON cryptonight variant 1 (MEM/2)
-                          cryptonight use to mine original cryptonight
-                          c11/flax    use to mine Chaincoin and Flax
-                          decred      use to mine Decred 180 bytes Blake256-14
-                          deep        use to mine Deepcoin
-                          dmd-gr      use to mine Diamond-Groestl
-                          equihash    use to mine ZEC, HUSH and KMD
-                          exosis      use to mine EXO
-                          fresh       use to mine Freshcoin
-                          fugue256    use to mine Fuguecoin
-                          groestl     use to mine Groestlcoin
-                          hsr         use to mine Hshare
-                          jackpot     use to mine Sweepcoin
-                          keccak      use to mine Maxcoin
-                          keccakc     use to mine CreativeCoin
-                          lbry        use to mine LBRY Credits
-                          luffa       use to mine Joincoin
-                          lyra2       use to mine CryptoCoin
-                          lyra2v2     use to mine Monacoin
-                          lyra2v3     use to mine Vertcoin
-                          lyra2z      use to mine Zerocoin (XZC)
-                          monero      use to mine Monero (XMR)
-                          myr-gr      use to mine Myriad-Groest
-                          neoscrypt   use to mine FeatherCoin, Trezarcoin, Orbitcoin, etc
-                          nist5       use to mine TalkCoin
-                          penta       use to mine Joincoin / Pentablake
-                          phi1612     use to mine Seraph
+                          neoscrypt   use to mine FeatherCoin, Trezarcoin, Orbitcoin, etc (SUPPORTED)
+
+                          # NOT SUPPORTED ATM:
+                          # allium      use to mine Garlic
+                          # bastion     use to mine Joincoin
+                          # bitcore     use to mine Bitcore's Timetravel10
+                          # blake       use to mine Saffroncoin (Blake256)
+                          # blakecoin   use to mine Old Blake 256
+                          # blake2s     use to mine Nevacoin (Blake2-S 256)
+                          # bmw         use to mine Midnight
+                          # cryptolight use to mine AEON cryptonight variant 1 (MEM/2)
+                          # cryptonight use to mine original cryptonight
+                          # c11/flax    use to mine Chaincoin and Flax
+                          # decred      use to mine Decred 180 bytes Blake256-14
+                          # deep        use to mine Deepcoin
+                          # dmd-gr      use to mine Diamond-Groestl
+                          # equihash    use to mine ZEC, HUSH and KMD
+                          # exosis      use to mine EXO
+                          # fresh       use to mine Freshcoin
+                          # fugue256    use to mine Fuguecoin
+                          # groestl     use to mine Groestlcoin
+                          # hsr         use to mine Hshare
+                          # jackpot     use to mine Sweepcoin
+                          # keccak      use to mine Maxcoin
+                          # keccakc     use to mine CreativeCoin
+                          # lbry        use to mine LBRY Credits
+                          # luffa       use to mine Joincoin
+                          # lyra2       use to mine CryptoCoin
+                          # lyra2v2     use to mine Monacoin
+                          # lyra2v3     use to mine Vertcoin
+                          # lyra2z      use to mine Zerocoin (XZC)
+                          # monero      use to mine Monero (XMR)
+                          # myr-gr      use to mine Myriad-Groest
+                          # nist5       use to mine TalkCoin
+                          # penta       use to mine Joincoin / Pentablake
+                          # phi1612     use to mine Seraph
+                          # phi2        use to mine LUXCoin
+                          # polytimos   use to mine Polytimos
+                          # quark       use to mine Quarkcoin
+                          # qubit       use to mine Qubit
+                          # scrypt      use to mine Scrypt coins (Litecoin, Dogecoin, etc)
+                          # scrypt:N    use to mine Scrypt-N (:10 for 2048 iterations)
+                          # scrypt-jane use to mine Chacha coins like Cache and Ultracoin
+                          # s3          use to mine 1coin (ONE)
+                          # sha256t     use to mine OneCoin (OC)
+                          # sha256q     use to mine Pyrite
+                          # sia         use to mine SIA
+                          # sib         use to mine Sibcoin
+                          # skein       use to mine Skeincoin
+                          # skein2      use to mine Woodcoin
+                          # skunk       use to mine Signatum
+                          # sonoa       use to mine Sono
+                          # stellite    use to mine Stellite (a cryptonight variant)
+                          # timetravel  use to mine MachineCoin
+                          # tribus      use to mine Denarius
+                          # x11evo      use to mine Revolver
+                          # x11         use to mine DarkCoin
+                          # x12         use to mine GalaxyCash
+                          # x13         use to mine X13
+                          # x14         use to mine X14
+                          # x15         use to mine Halcyon
+                          # x16r        use to mine Raven
+                          # x16s        use to mine Pigeon and Eden
+                          # x17         use to mine X17
+                          # vanilla     use to mine Vanilla (Blake256)
+                          # veltor      use to mine VeltorCoin
+                          # whirlpool   use to mine Joincoin
+                          # wildkeccak  use to mine Boolberry (Stratum only)
+                          # zr5         use to mine ZiftrCoin
+
+  -d, --devices         gives a comma separated list of CUDA device IDs
+                        to operate on. Device IDs start counting from 0!
+                        Alternatively give string names of your card like
+                        gtx780ti or gt640#2 (matching 2nd gt640 in the PC).
+
+  -i, --intensity=N[,N] GPU threads per call 8-25 (2^N + F, default: 0=auto)
+                        Decimals and multiple values are allowed for fine tuning
+      --cuda-schedule   Set device threads scheduling mode (default: auto)
+  -f, --diff-factor     Divide difficulty by this factor (default 1.0)
+  -m, --diff-multiplier Multiply difficulty by this value (default 1.0)
+  -o, --url=URL         URL of mining server
+  -O, --userpass=U:P    username:password pair for mining server
+  -u, --user=USERNAME   username for mining server
+  -p, --pass=PASSWORD   password for mining server
+      --cert=FILE       certificate for mining server using SSL
                           phi2        use to mine LUXCoin
                           polytimos   use to mine Polytimos
                           quark       use to mine Quarkcoin
