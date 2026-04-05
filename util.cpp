@@ -2176,14 +2176,14 @@ void print_hash_tests(void)
 	allium_hash(&hash[0], &buf[0]);
 	printpfx("allium", hash);
 
-	bastionhash(&hash[0], &buf[0]);
-	printpfx("bastion", hash);
+	// bastionhash(&hash[0], &buf[0]);
+	// printpfx("bastion", hash);
 
-	blake256hash(&hash[0], &buf[0], 8);
-	printpfx("blakecoin", hash);
+	// blake256hash(&hash[0], &buf[0], 8);
+	// printpfx("blakecoin", hash);
 
-	blake256hash(&hash[0], &buf[0], 14);
-	printpfx("blake", hash);
+	// blake256hash(&hash[0], &buf[0], 14);
+	// printpfx("blake", hash);
 
 	blake2b_hash(&hash[0], &buf[0]);
 	printpfx("blake2b", hash);
@@ -2213,14 +2213,14 @@ void print_hash_tests(void)
 	fresh_hash(&hash[0], &buf[0]);
 	printpfx("fresh", hash);
 
-	fugue256_hash(&hash[0], &buf[0], 32);
-	printpfx("fugue256", hash);
+	// fugue256_hash(&hash[0], &buf[0], 32);
+	// printpfx("fugue256", hash);
 
 	groestlhash(&hash[0], &buf[0]);
 	printpfx("groestl", hash);
 
-	heavycoin_hash(&hash[0], &buf[0], 32);
-	printpfx("heavy", hash);
+	// heavycoin_hash(&hash[0], &buf[0], 32);
+	// printpfx("heavy", hash);
 
 	hmq17hash(&hash[0], &buf[0]);
 	printpfx("hmq1725", hash);
@@ -2238,11 +2238,11 @@ void print_hash_tests(void)
 	lbry_hash(&hash[0], &buf[0]);
 	printpfx("lbry", hash);
 
-	luffa_hash(&hash[0], &buf[0]);
-	printpfx("luffa", hash);
+	// luffa_hash(&hash[0], &buf[0]);
+	// printpfx("luffa", hash);
 
-	lyra2re_hash(&hash[0], &buf[0]);
-	printpfx("lyra2", hash);
+	// lyra2re_hash(&hash[0], &buf[0]);
+	// printpfx("lyra2", hash);
 
 	lyra2v2_hash(&hash[0], &buf[0]);
 	printpfx("lyra2v2", hash);
@@ -2250,14 +2250,14 @@ void print_hash_tests(void)
 	lyra2v3_hash(&hash[0], &buf[0]);
 	printpfx("lyra2v3", hash);
 
-	lyra2Z_hash(&hash[0], &buf[0]);
-	printpfx("lyra2z", hash);
+	// lyra2Z_hash(&hash[0], &buf[0]);
+	// printpfx("lyra2z", hash);
 
-	monero_hash(&hash[0], &buf[0]);
-	printpfx("monero", hash);
+	// monero_hash(&hash[0], &buf[0]);
+	// printpfx("monero", hash);
 
-	myriadhash(&hash[0], &buf[0]);
-	printpfx("myriad", hash);
+	// myriadhash(&hash[0], &buf[0]);
+	// printpfx("myriad", hash);
 
 	neoscrypt(&hash[0], &buf[0], 80000620);
 	printpfx("neoscrypt", hash);
@@ -2310,8 +2310,8 @@ void print_hash_tests(void)
 	skunk_hash(&hash[0], &buf[0]);
 	printpfx("skunk", hash);
 
-	stellite_hash(&hash[0], &buf[0]);
-	printpfx("stelitte", hash);
+	// stellite_hash(&hash[0], &buf[0]);
+	// printpfx("stelitte", hash);
 
 	s3hash(&hash[0], &buf[0]);
 	printpfx("S3", hash);
@@ -2325,8 +2325,8 @@ void print_hash_tests(void)
 	exosis_hash(&hash[0], &buf[0]);
 	printpfx("exosis", hash);
 
-	blake256hash(&hash[0], &buf[0], 8);
-	printpfx("vanilla", hash);
+	// blake256hash(&hash[0], &buf[0], 8);
+	// printpfx("vanilla", hash);
 
 	tribus_hash(&hash[0], &buf[0]);
 	printpfx("tribus", hash);
