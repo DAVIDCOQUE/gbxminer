@@ -56,11 +56,7 @@ endif
 gbxminer_LDADD += -lcuda
 
 nvcc_ARCH :=
-# CUDA 12+ support - target all architectures from Kepler to Hopper
-# Kepler (GTX 600/700 series) - legacy support
-nvcc_ARCH += -gencode=arch=compute_30,code=sm_30
-nvcc_ARCH += -gencode=arch=compute_35,code=sm_35
-nvcc_ARCH += -gencode=arch=compute_37,code=sm_37
+# CUDA 12+ support - target all architectures from Maxwell to Hopper
 # Maxwell (GTX 900 series)
 nvcc_ARCH += -gencode=arch=compute_50,code=sm_50
 nvcc_ARCH += -gencode=arch=compute_52,code=sm_52

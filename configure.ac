@@ -147,8 +147,8 @@ fi
 AC_SUBST(CUDA_LOCAL_PATH)
 
 CUDA_INCLUDES="-I$CUDA_LOCAL_PATH/include"
-CUDA_LDFLAGS="-L$CUDA_LOCAL_PATH/lib$SUFFIX"
-CUDA_LIBS="-lcudart -static-libstdc++"
+CUDA_LDFLAGS="-L$CUDA_LOCAL_PATH/lib64 -L/usr/lib/x86_64-linux-gnu"
+CUDA_LIBS="-lcudart -lcuda -ldl -lrt"
 
 if test -n "$with_nvml" ; then
   NVML_LIBPATH=$with_nvml
