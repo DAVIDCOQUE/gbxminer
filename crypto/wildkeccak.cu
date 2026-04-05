@@ -1,7 +1,8 @@
 // WildKeccak CUDA Kernel, Code based on Linux Wolf0 bbr-miner implementation from 2014
 // Adapted to ccminer 2.0 - tpruvot 2016-2017
+// Adapted to gbxminer 1.0 - d0wn3d 2026-2027
 //
-// NOTE FOR SP: this ccminer version is licensed under GPLv3 Licence
+// NOTE FOR SP: this gbxminer version is licensed under GPLv3 Licence
 
 extern "C" {
 #include <errno.h>

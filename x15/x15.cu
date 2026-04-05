@@ -1,6 +1,7 @@
 /*
  * X15 algorithm (CHC, BBC, X15C)
  * Added in ccminer by Tanguy Pruvot - 2014
+ * Added in gbxminer by Antonio Moratti - 2026
  */
 
 extern "C" {

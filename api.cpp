@@ -1,5 +1,6 @@
 /*
- * Copyright 2014 ccminer team
+* Copyright 2014 ccminer team
+* Copyright 2026 gbxminer team
  *
  * Implementation by tpruvot (based on cgminer)
  *

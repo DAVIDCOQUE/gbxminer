@@ -1,5 +1,5 @@
 /**
- * Equihash solver interface for ccminer (compatible with linux and windows)
+ * Equihash solver interface for gbxminer (compatible with linux and windows)
  * Solver taken from nheqminer, by djeZo (and NiceHash)
  * tpruvot - 2017 (GPL v3)
  */

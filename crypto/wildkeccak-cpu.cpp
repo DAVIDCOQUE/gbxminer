@@ -7,6 +7,7 @@
 
 // Modified for CPUminer by Lucas Jones
 // Adapted for ccminer by Tanguy Pruvot - 2016
+// Adapted for gbxminer by Antonio Moratti - 2026
 
 #include <errno.h>
 #include <unistd.h>
