@@ -42,9 +42,7 @@ using namespace Concurrency;
 #include <stdint.h>
 #include <string.h>
 
-#ifndef ARM64
 #include <emmintrin.h>
-#endif
 #ifndef __APPLE__
 #include <malloc.h>
 #endif

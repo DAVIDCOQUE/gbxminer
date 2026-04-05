@@ -22,8 +22,6 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  gbxminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
 			  nvsettings.cpp \
-			  stubs.cpp \
-			  cuda_checkhash.cu \
 			  equi/equi-stratum.cpp equi/equi.cpp equi/blake2/blake2bx.cpp \
 			  equi/equihash.cpp equi/cuda_equi.cu \
 			  heavy/heavy.cu \
@@ -61,7 +59,6 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  quark/nist5.cu \
 			  quark/quarkcoin.cu quark/cuda_quark_compactionTest.cu \
 			  neoscrypt/neoscrypt.cpp neoscrypt/neoscrypt-cpu.c neoscrypt/cuda_neoscrypt.cu \
-			  sph/sph_sha2.c
 			  pentablake.cu skein.cu cuda_skeincoin.cu skein2.cpp zr5.cu \
 			  skunk/skunk.cu skunk/cuda_skunk.cu skunk/cuda_skunk_streebog.cu \
 			  sha256/sha256d.cu sha256/cuda_sha256d.cu sha256/sha256t.cu sha256/cuda_sha256t.cu sha256/sha256q.cu sha256/cuda_sha256q.cu \
@@ -88,6 +85,13 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  x17/x17.cu x17/hmq17.cu x17/sonoa.cu x17/cuda_x17_haval256.cu x17/cuda_x17_sha512.cu \
 			  phi/phi.cu phi/phi2.cu phi/cuda_phi2.cu phi/cuda_phi2_cubehash512.cu x11/cuda_streebog_maxwell.cu \
 			  x11/c11.cu x11/s3.cu x11/sib.cu x11/veltor.cu x11/cuda_streebog.cu
+
+# scrypt
+gbxminer_SOURCES += scrypt.cpp scrypt-jane.cpp \
+    scrypt/blake.cu scrypt/keccak.cu scrypt/sha256.cu \
+    scrypt/salsa_kernel.cu scrypt/test_kernel.cu \
+    scrypt/fermi_kernel.cu scrypt/kepler_kernel.cu \
+    scrypt/nv_kernel.cu scrypt/nv_kernel2.cu scrypt/titan_kernel.cu
 
 if HAVE_NVML
 nvml_defs = -DUSE_WRAPNVML

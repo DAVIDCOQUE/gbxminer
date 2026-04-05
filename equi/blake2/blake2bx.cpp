@@ -25,9 +25,7 @@
 #include <intrin.h>
 #endif
 
-#ifndef ARM64
 #include <emmintrin.h>
-#endif
 #if defined(HAVE_SSSE3)
 #include <tmmintrin.h>
 #endif
