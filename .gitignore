@@ -5,6 +5,8 @@ gbxminer
 
 configure~
 stubs.cpp
+ccminer-config.h
+ccminer-config.h.in
 
 autom4te.cache
 .deps
