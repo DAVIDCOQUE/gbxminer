@@ -2,7 +2,7 @@
  * Copyright 2010 Jeff Garzik
  * Copyright 2012-2014 pooler
  * Copyright 2014-2017 tpruvot
- * Copyright 2026-2027 d0wn3d
+  * Copyright 2026-2027 d0wn3d
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -2416,11 +2416,9 @@ static void *miner_thread(void *userdata)
 		case ALGO_DEEP:
 			rc = scanhash_deep(thr_id, &work, max_nonce, &hashes_done);
 			break;
-#ifndef ARM64
 		case ALGO_EQUIHASH:
 			rc = scanhash_equihash(thr_id, &work, max_nonce, &hashes_done);
 			break;
-#endif
 		case ALGO_FRESH:
 			rc = scanhash_fresh(thr_id, &work, max_nonce, &hashes_done);
 			break;
@@ -2504,7 +2502,6 @@ static void *miner_thread(void *userdata)
 		case ALGO_POLYTIMOS:
 			rc = scanhash_polytimos(thr_id, &work, max_nonce, &hashes_done);
 			break;
-#ifndef ARM64
 		case ALGO_SCRYPT:
 			rc = scanhash_scrypt(thr_id, &work, max_nonce, &hashes_done,
 				NULL, &tv_start, &tv_end);
@@ -2513,7 +2510,6 @@ static void *miner_thread(void *userdata)
 			rc = scanhash_scrypt_jane(thr_id, &work, max_nonce, &hashes_done,
 				NULL, &tv_start, &tv_end);
 			break;
-#endif
 		case ALGO_SKEIN:
 			rc = scanhash_skeincoin(thr_id, &work, max_nonce, &hashes_done);
 			break;
@@ -2557,11 +2553,9 @@ static void *miner_thread(void *userdata)
 		//case ALGO_WHIRLPOOLX:
 		//	rc = scanhash_whirlx(thr_id, &work, max_nonce, &hashes_done);
 		//	break;
-#ifndef ARM64
 		case ALGO_WILDKECCAK:
 			rc = scanhash_wildkeccak(thr_id, &work, max_nonce, &hashes_done);
 			break;
-#endif
 		case ALGO_TIMETRAVEL:
 			rc = scanhash_timetravel(thr_id, &work, max_nonce, &hashes_done);
 			break;
