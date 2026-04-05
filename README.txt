@@ -25,7 +25,7 @@ This version supports:
 >>> Supported Algorithms <<<
 
   -a, --algo=ALGO       specify the algorithm to use
-                          neoscrypt   use to mine FeatherCoin, Trezarcoin, Orbitcoin, etc (SUPPORTED)
+                          neoscrypt   use to mine GoByte, FeatherCoin, Trezarcoin, Orbitcoin, etc (SUPPORTED)
 
                           # NOT SUPPORTED ATM:
                           # allium      use to mine Garlic
@@ -291,7 +291,15 @@ This code should be running on nVidia GPUs ranging from compute capability
 so we can more efficiently implement new algorithms using the latest hardware
 features.
 
->>> RELEASE HISTORY <<<
+>>> GBXMINER RELEASE HISTORY <<<
+
+  Apr. 5th 2026   v1.0.0
+                  Initial release
+                  Focus on NeoScrypt algorithm only (GoByte, FeatherCoin, etc)
+                  Support for all modern nVidia GPUs (GTX 900 to RTX 5090)
+                  Built with CUDA 12
+
+>>> CCMINER RELEASE HISTORY <<<
   Jan. 30th 2019  v2.3.1
                   Handle Lyra2v3 algo
                   Handle sha256q algo
