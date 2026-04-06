@@ -7,13 +7,13 @@
 #include <cuda_runtime.h>
 
 // Helper macro to create a 1D texture object from linear device memory
-#define CREATE_TEXTURE_OBJECT_1D(texObj, devPtr, channelDesc, sizeInBytes) \
+#define CREATE_TEXTURE_OBJECT_1D(texObj, p_devPtr, p_channelDesc, p_sizeInBytes) \
     do { \
         cudaResourceDesc _resDesc = {}; \
         _resDesc.resType = cudaResourceTypeLinear; \
-        _resDesc.res.linear.desc = channelDesc; \
-        _resDesc.res.linear.devPtr = devPtr; \
-        _resDesc.res.linear.sizeInBytes = (size_t)(sizeInBytes); \
+        _resDesc.res.linear.desc = p_channelDesc; \
+        _resDesc.res.linear.devPtr = p_devPtr; \
+        _resDesc.res.linear.sizeInBytes = (size_t)(p_sizeInBytes); \
         cudaTextureDesc _texDesc = {}; \
         _texDesc.addressMode[0] = cudaAddressModeClamp; \
         _texDesc.filterMode = cudaFilterModePoint; \
@@ -22,15 +22,15 @@
     } while(0)
 
 // Helper macro to create a 2D texture object from pitch2D device memory
-#define CREATE_TEXTURE_OBJECT_2D(texObj, devPtr, channelDesc, width, height, pitch) \
+#define CREATE_TEXTURE_OBJECT_2D(texObj, p_devPtr, p_channelDesc, p_width, p_height, p_pitch) \
     do { \
         cudaResourceDesc _resDesc2D = {}; \
         _resDesc2D.resType = cudaResourceTypePitch2D; \
-        _resDesc2D.res.pitch2D.desc = channelDesc; \
-        _resDesc2D.res.pitch2D.devPtr = devPtr; \
-        _resDesc2D.res.pitch2D.width = (size_t)(width); \
-        _resDesc2D.res.pitch2D.height = (size_t)(height); \
-        _resDesc2D.res.pitch2D.pitchInBytes = (size_t)(pitch); \
+        _resDesc2D.res.pitch2D.desc = p_channelDesc; \
+        _resDesc2D.res.pitch2D.devPtr = p_devPtr; \
+        _resDesc2D.res.pitch2D.width = (size_t)(p_width); \
+        _resDesc2D.res.pitch2D.height = (size_t)(p_height); \
+        _resDesc2D.res.pitch2D.pitchInBytes = (size_t)(p_pitch); \
         cudaTextureDesc _texDesc2D = {}; \
         _texDesc2D.addressMode[0] = cudaAddressModeClamp; \
         _texDesc2D.addressMode[1] = cudaAddressModeClamp; \
