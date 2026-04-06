@@ -51,17 +51,16 @@ extern "C" {
     uint8_t  salt[BLAKE2B_SALTBYTES]; // 48
     uint8_t  personal[BLAKE2B_PERSONALBYTES];  // 64
   } blake2b_param;
+#pragma pack(pop)
 
-  ALIGN( 64 ) typedef struct __blake2b_state
+  typedef struct __blake2b_state
   {
     uint64_t h[8];
     uint8_t  buf[BLAKE2B_BLOCKBYTES];
     uint16_t counter;
     uint8_t  buflen;
     uint8_t  lastblock;
-  } blake2b_state;
-
-#pragma pack(pop)
+  } ALIGN(64) blake2b_state;
 
   int eq_blake2b_init( blake2b_state *S, const uint8_t outlen );
   int eq_blake2b_init_key( blake2b_state *S, const uint8_t outlen, const void *key, const uint8_t keylen );
