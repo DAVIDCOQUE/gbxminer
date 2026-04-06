@@ -30,7 +30,7 @@ jobs:
           - os: ubuntu-24.04
             arch: aarch64
             artifact_name: gbxminer-linux-aarch64
-          - os: ubuntu-24.04
+          - os: windows-2025
             arch: win64
             artifact_name: gbxminer-windows-x86_64
 
@@ -51,9 +51,10 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup CUDA (x86_64 only)
-        # nvcc does not support Linux->Windows cross-compilation; win64 gets
-        # no CUDA setup.  The win64 target builds the CPU/host-side code only.
+      - name: Setup CUDA (Linux x86_64)
+        # win64 now runs on a native windows-2025 runner; this step only applies
+        # to the ubuntu-24.04 x86_64 build.  nvcc cannot cross-compile CUDA
+        # kernels from Linux for any other target.
         if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
@@ -67,11 +68,26 @@ jobs:
       - name: Setup Linux aarch64 cross-compile
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
         run: |
-          # Enable arm64 multiarch so apt can install arm64 dev packages
-          # alongside the host x86_64 packages without conflict.
-          # This MUST happen before apt-get update so the arm64 package
-          # index is fetched in the same pass.
           sudo dpkg --add-architecture arm64
+
+          # GitHub Actions Ubuntu 24.04 runners are x86_64.  archive.ubuntu.com
+          # and security.ubuntu.com do not serve arm64 packages at all — fetching
+          # them returns HTTP 404.  Fix: annotate each existing DEB822 stanza with
+          # "Architectures: amd64" so apt no longer tries to fetch arm64 indexes
+          # from those mirrors, then add a separate source pointing to
+          # ports.ubuntu.com which is Ubuntu's canonical non-amd64 mirror.
+          sudo sed -i '/^Types: deb$/a Architectures: amd64' \
+              /etc/apt/sources.list.d/ubuntu.sources
+
+          sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null << 'EOF'
+Types: deb
+URIs: http://ports.ubuntu.com/ubuntu-ports
+Suites: noble noble-updates noble-security noble-backports
+Components: main restricted universe multiverse
+Architectures: arm64
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
+
           sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-arm64 \
@@ -83,27 +99,28 @@ jobs:
             libcurl4-openssl-dev:arm64
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
 
-      - name: Setup Windows cross-compile
-        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
-        run: |
-          sudo apt-get install -y \
-            mingw-w64 \
-            gcc-mingw-w64-x86-64 \
-            g++-mingw-w64-x86-64
-          echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
-          echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
-
-          # Download the official pre-built mingw64 curl from curl.se.
-          # This provides lib/libcurl.dll.a (mingw import library) and
-          # include/curl/curl.h, which the cross-linker requires.
-          # Pin the version so CI is reproducible; bump deliberately.
-          CURL_WIN_VER="8.5.0"
-          wget -q "https://curl.se/windows/dl-${CURL_WIN_VER}/curl-${CURL_WIN_VER}-win64-mingw.zip"
-          unzip -q "curl-${CURL_WIN_VER}-win64-mingw.zip"
-          CURL_WIN_DIR="$(pwd)/curl-${CURL_WIN_VER}-win64-mingw"
-          echo "CURL_WIN_DIR=${CURL_WIN_DIR}" >> $GITHUB_ENV
+      - name: Setup Windows build (MSYS2)
+        if: matrix.os == 'windows-2025'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          # mingw-w64-x86_64-curl provides both the headers and libcurl.dll.a
+          # import library natively — no cross-compilation or external download
+          # required.  openssl, jansson, and zlib are likewise available in the
+          # pacman repository and link cleanly against the MINGW64 toolchain.
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-jansson
+            mingw-w64-x86_64-zlib
+            autoconf
+            automake
+            libtool
+            make
+            pkg-config
 
       - name: Configure build (Linux x86_64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
@@ -120,14 +137,11 @@ jobs:
         run: |
           rm -f Makefile || true
           ./autogen.sh
-          # The host curl-config (/usr/bin/curl-config) reports x86_64 link
-          # flags.  When LIBCURL_CHECK_CONFIG feeds those into AC_LINK_IFELSE
-          # using the aarch64 cross-compiler the link test fails and configure
-          # aborts.  Fix: pre-set LIBCURL_CPPFLAGS and LIBCURL to point at the
-          # arm64 multiarch libraries, and assert libcurl_cv_lib_curl_usable=yes
-          # so autoconf skips the cross-execution link test.  The arm64
-          # libcurl.so is confirmed present because we installed
-          # libcurl4-openssl-dev:arm64 above.
+          # Pre-set LIBCURL* to the arm64 multiarch paths so LIBCURL_CHECK_CONFIG
+          # does not call the host curl-config (which returns x86_64 flags that
+          # the aarch64 cross-linker rejects).  libcurl_cv_lib_curl_usable=yes
+          # skips the AC_LINK_IFELSE compile test, consistent with the other
+          # ac_cv_lib_* cache overrides already present for cross-compilation.
           LIBCURL_CPPFLAGS="-I/usr/include" \
           LIBCURL="-L/usr/lib/aarch64-linux-gnu -lcurl" \
           ./configure --host=aarch64-linux-gnu \
@@ -138,28 +152,23 @@ jobs:
             ac_cv_lib_ssl_SSL_free=yes \
             ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
 
-      - name: Configure build (Windows win64)
-        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
+      - name: Configure build (Windows native)
+        if: matrix.os == 'windows-2025'
+        shell: msys2 {0}
         run: |
           rm -f Makefile || true
           ./autogen.sh
-          # Same root cause as aarch64: the host curl-config gives x86_64
-          # flags which the mingw cross-linker rejects.  Pre-set LIBCURL* to
-          # the mingw curl downloaded in the setup step above.
-          # -lws2_32 -lwldap32 -lcrypt32 are Windows socket/LDAP/crypto libs
-          # that libcurl.dll depends on; mingw must see them at link time.
-          LIBCURL_CPPFLAGS="-I${CURL_WIN_DIR}/include" \
-          LIBCURL="-L${CURL_WIN_DIR}/lib -lcurl -lws2_32 -lwldap32 -lcrypt32" \
-          ./configure --host=x86_64-w64-mingw32 \
+          # pkg-config in MSYS2 MINGW64 resolves libcurl, openssl, and jansson
+          # from the pacman-installed packages.  No cache overrides are needed
+          # because the configure link test runs with the native MinGW compiler
+          # against native Windows libraries.
+          ./configure \
             CXXFLAGS="-O3" \
-            libcurl_cv_lib_curl_usable=yes \
-            ac_cv_lib_jansson_json_loads=yes \
-            ac_cv_lib_z_gzopen=yes \
-            ac_cv_lib_ssl_SSL_free=yes \
-            ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
+            PKG_CONFIG="pkg-config --static"
 
       - name: Build
-        run: make -j$(nproc)
+        shell: ${{ matrix.os == 'windows-2025' && 'msys2 {0}' || 'bash' }}
+        run: make -j$(nproc 2>/dev/null || echo 4)
 
       - name: Verify binary (Linux only)
         if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
@@ -169,17 +178,16 @@ jobs:
 
       - name: Verify binary (Linux aarch64)
         if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'"
-        run: |
-          file ./gbxminer
+        run: file ./gbxminer
 
-      - name: Verify binary (Windows win64)
-        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'"
-        run: |
-          file ./gbxminer
+      - name: Verify binary (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: msys2 {0}
+        run: file ./gbxminer.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact_name }}
-          path: ./gbxminer
+          path: ./gbxminer${{ matrix.os == 'windows-2025' && '.exe' || '' }}
           retention-days: 3
