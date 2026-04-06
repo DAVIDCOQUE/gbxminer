@@ -45,7 +45,7 @@
 static unsigned int* d_textures[MAX_GPUS][1];
 
 // CUDA 12 compatible texture objects
-static cudaTextureObject_t d_texMixTab0[MAX_GPUS];
+static cudaTextureObject_t d_texMixTab0[MAX_GPUS] = {0};
 
 #define mixtab0(x) mixtabs[(x)]
 #define mixtab1(x) mixtabs[(x)+256]
