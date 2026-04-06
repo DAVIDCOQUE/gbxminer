@@ -138,8 +138,6 @@ void free_skein2(int thr_id)
 	if (!init[thr_id])
 		return;
 
-	cudaThreadSynchronize();
-
 	cudaFree(d_hash[thr_id]);
 
 	cuda_check_cpu_free(thr_id);

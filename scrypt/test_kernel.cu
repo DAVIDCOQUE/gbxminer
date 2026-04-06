@@ -9,7 +9,7 @@
  * Also this kernel is going to be a testbed for adaptation to Fermi devices.
  */
 
-// TODO: experiment with different memory access patterns in write/read_keys_direct functions
+// TODO: experiment with different memory access patterns in write_keys_direct functions
 // TODO: attempt V.Volkov style ILP (factor 4)
 
 #include <map>
@@ -19,6 +19,7 @@
 
 #include "salsa_kernel.h"
 #include "test_kernel.h"
+#include "cuda_texture_helper.h"
 
 #define TEXWIDTH 32768
 #define THREADS_PER_WU 4  // four threads per hash
@@ -41,9 +42,11 @@ __constant__ uint32_t c_SCRATCH;
 __constant__ uint32_t c_SCRATCH_WU_PER_WARP;   // (SCRATCH * WU_PER_WARP)
 __constant__ uint32_t c_SCRATCH_WU_PER_WARP_1; // (SCRATCH * WU_PER_WARP) - 1
 
-// using texture references for the "tex" variants of the B kernels
-texture<uint4, 1, cudaReadModeElementType> texRef1D_4_V;
-texture<uint4, 2, cudaReadModeElementType> texRef2D_4_V;
+// using texture objects for the "tex" variants of the B kernels (CUDA 12 compatible)
+static cudaTextureObject_t texObj1D_4_V[MAX_GPUS] = {0};
+static cudaTextureObject_t texObj2D_4_V[MAX_GPUS] = {0};
+static uint4* d_V_1D = NULL;
+static uint4* d_V_2D = NULL;
 
 template <int ALGO> __device__  __forceinline__ void block_mixer(uint4 &b, uint4 &bx, const int x1, const int x2, const int x3);
 
@@ -129,11 +132,11 @@ void read_keys_direct(uint4 &b, uint4 &bx, uint32_t start)
 				b  = *((uint4 *)(&scratch[c ? t2_start : start]));
 				bx = *((uint4 *)(&scratch[c ? start : t2_start]));
 		} else if (TEX_DIM == 1) {
-				b  = tex1Dfetch(texRef1D_4_V, c ? t2_start : start);
-				bx = tex1Dfetch(texRef1D_4_V, c ? start : t2_start);
+				b  = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], c ? t2_start : start);
+				bx = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], c ? start : t2_start);
 		} else if (TEX_DIM == 2) {
-				b  = tex2D(texRef2D_4_V, 0.5f + ((c ? t2_start : start)%TEXWIDTH), 0.5f + ((c ? t2_start : start)/TEXWIDTH));
-				bx = tex2D(texRef2D_4_V, 0.5f + ((c ? start : t2_start)%TEXWIDTH), 0.5f + ((c ? start : t2_start)/TEXWIDTH));
+				b  = tex2D<uint4>(texObj2D_4_V, 0.5f + ((c ? t2_start : start)%TEXWIDTH), 0.5f + ((c ? t2_start : start)/TEXWIDTH));
+				bx = tex2D<uint4>(texObj2D_4_V, 0.5f + ((c ? start : t2_start)%TEXWIDTH), 0.5f + ((c ? start : t2_start)/TEXWIDTH));
 		}
 		uint4 temp = b; b = (c ? bx : b); bx = (c ? temp : bx);
 		uint32_t *st = &tmp[threadIdx.x/32][(threadIdx.x + 28)%32];
@@ -143,11 +146,11 @@ void read_keys_direct(uint4 &b, uint4 &bx, uint32_t start)
 		*s = bx.w; bx.w = *st;
 	} else {
 				 if (TEX_DIM == 0) b = *((uint4 *)(&scratch[start]));
-		else if (TEX_DIM == 1) b = tex1Dfetch(texRef1D_4_V, start/4);
-		else if (TEX_DIM == 2) b = tex2D(texRef2D_4_V, 0.5f + ((start/4)%TEXWIDTH), 0.5f + ((start/4)/TEXWIDTH));
+		else if (TEX_DIM == 1) b = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], start/4);
+		else if (TEX_DIM == 2) b = tex2D<uint4>(texObj2D_4_V, 0.5f + ((start/4)%TEXWIDTH), 0.5f + ((start/4)/TEXWIDTH));
 				 if (TEX_DIM == 0) bx = *((uint4 *)(&scratch[start+16]));
-		else if (TEX_DIM == 1) bx = tex1Dfetch(texRef1D_4_V, (start+16)/4);
-		else if (TEX_DIM == 2) bx = tex2D(texRef2D_4_V, 0.5f + (((start+16)/4)%TEXWIDTH), 0.5f + (((start+16)/4)/TEXWIDTH));
+		else if (TEX_DIM == 1) bx = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], (start+16)/4);
+		else if (TEX_DIM == 2) bx = tex2D<uint4>(texObj2D_4_V, 0.5f + (((start+16)/4)%TEXWIDTH), 0.5f + (((start+16)/4)/TEXWIDTH));
 	}
 }
 
@@ -240,7 +243,7 @@ void store_key_salsa(uint32_t *B, uint4 &b, uint4 &bx)
  * in internal processing order.
  */
 
-__device__  __forceinline__ 
+__device__  __forceinline__
 void load_key_chacha(const uint32_t *B, uint4 &b, uint4 &bx)
 {
 	int scrypt_block = (blockIdx.x*blockDim.x + threadIdx.x)/THREADS_PER_WU;
@@ -660,39 +663,46 @@ TestKernel::TestKernel() : KernelInterface()
 {
 }
 
-bool TestKernel::bindtexture_1D(uint32_t *d_V, size_t size)
+bool TestKernel::bindtexture_1D(uint32_t *d_V, size_t size, int thr_id)
 {
 	cudaChannelFormatDesc channelDesc4 = cudaCreateChannelDesc<uint4>();
-	texRef1D_4_V.normalized = 0;
-	texRef1D_4_V.filterMode = cudaFilterModePoint;
-	texRef1D_4_V.addressMode[0] = cudaAddressModeClamp;
-	checkCudaErrors(cudaBindTexture(NULL, &texRef1D_4_V, d_V, &channelDesc4, size));
+	CREATE_TEXTURE_OBJECT_1D(texObj1D_4_V[thr_id], d_V, channelDesc4, size);
+	d_V_1D = (uint4*)d_V;
 	return true;
 }
 
-bool TestKernel::bindtexture_2D(uint32_t *d_V, int width, int height, size_t pitch)
+bool TestKernel::bindtexture_2D(uint32_t *d_V, int width, int height, size_t pitch, int thr_id)
 {
 	cudaChannelFormatDesc channelDesc4 = cudaCreateChannelDesc<uint4>();
-	texRef2D_4_V.normalized = 0;
-	texRef2D_4_V.filterMode = cudaFilterModePoint;
-	texRef2D_4_V.addressMode[0] = cudaAddressModeClamp;
-	texRef2D_4_V.addressMode[1] = cudaAddressModeClamp;
 	// maintain texture width of TEXWIDTH (max. limit is 65000)
 	while (width > TEXWIDTH) { width /= 2; height *= 2; pitch /= 2; }
 	while (width < TEXWIDTH) { width *= 2; height = (height+1)/2; pitch *= 2; }
-	checkCudaErrors(cudaBindTexture2D(NULL, &texRef2D_4_V, d_V, &channelDesc4, width, height, pitch));
+	CREATE_TEXTURE_OBJECT_2D(texObj2D_4_V[thr_id], d_V, channelDesc4, (size_t)width, (size_t)height, pitch);
+	d_V_2D = (uint4*)d_V;
 	return true;
 }
 
 bool TestKernel::unbindtexture_1D()
 {
-	checkCudaErrors(cudaUnbindTexture(texRef1D_4_V));
+	// Destroy texture objects to prevent resource leaks
+	for (int i = 0; i < MAX_GPUS; i++) {
+		if (texObj1D_4_V[i] != 0) {
+			cudaDestroyTextureObject(texObj1D_4_V[i]);
+			texObj1D_4_V[i] = 0;
+		}
+	}
 	return true;
 }
 
 bool TestKernel::unbindtexture_2D()
 {
-	checkCudaErrors(cudaUnbindTexture(texRef2D_4_V));
+	// Destroy texture objects to prevent resource leaks
+	for (int i = 0; i < MAX_GPUS; i++) {
+		if (texObj2D_4_V[i] != 0) {
+			cudaDestroyTextureObject(texObj2D_4_V[i]);
+			texObj2D_4_V[i] = 0;
+		}
+	}
 	return true;
 }
 

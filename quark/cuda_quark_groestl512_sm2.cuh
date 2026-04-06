@@ -1,4 +1,4 @@
-// SM 2.x variant (tpruvot)
+// SM 2.x variant (tpruvot) - CUDA 12 compatible
 
 #ifdef __INTELLISENSE__
 //#define __CUDA_ARCH__ 210
@@ -9,9 +9,19 @@
 #define tex1Dfetch(t, n) (n)
 #endif
 
+#include "cuda_texture_helper.h"
+
 #define USE_SHARED 1
 
 static unsigned int *d_textures[MAX_GPUS][8];
+static cudaTextureObject_t d_tex_T0up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T0dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T1up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T1dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T2up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T2dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T3up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T3dn[MAX_GPUS];
 
 #define PC32up(j, r)   ((uint32_t)((j) + (r)))
 #define PC32dn(j, r)   0
@@ -35,15 +45,6 @@ static unsigned int *d_textures[MAX_GPUS][8];
 #define T2dn(x) (*((uint32_t*)mixtabs + (1280+(x))))
 #define T3up(x) (*((uint32_t*)mixtabs + (1536+(x))))
 #define T3dn(x) (*((uint32_t*)mixtabs + (1792+(x))))
-
-texture<unsigned int, 1, cudaReadModeElementType> t0up1;
-texture<unsigned int, 1, cudaReadModeElementType> t0dn1;
-texture<unsigned int, 1, cudaReadModeElementType> t1up1;
-texture<unsigned int, 1, cudaReadModeElementType> t1dn1;
-texture<unsigned int, 1, cudaReadModeElementType> t2up1;
-texture<unsigned int, 1, cudaReadModeElementType> t2dn1;
-texture<unsigned int, 1, cudaReadModeElementType> t3up1;
-texture<unsigned int, 1, cudaReadModeElementType> t3dn1;
 
 extern uint32_t T0up_cpu[];
 extern uint32_t T0dn_cpu[];
@@ -129,21 +130,25 @@ void quark_groestl512_perm_Q(uint32_t *a, char *mixtabs)
 #endif
 
 __global__
-void quark_groestl512_gpu_hash_64(uint32_t threads, uint32_t startNounce, uint32_t *g_hash, uint32_t *g_nonceVector)
+void quark_groestl512_gpu_hash_64(uint32_t threads, uint32_t startNounce, uint32_t *g_hash, uint32_t *g_nonceVector,
+	cudaTextureObject_t tex_T0up, cudaTextureObject_t tex_T0dn,
+	cudaTextureObject_t tex_T1up, cudaTextureObject_t tex_T1dn,
+	cudaTextureObject_t tex_T2up, cudaTextureObject_t tex_T2dn,
+	cudaTextureObject_t tex_T3up, cudaTextureObject_t tex_T3dn)
 {
 #if __CUDA_ARCH__ < 300 || defined(_DEBUG)
 
 #if USE_SHARED
 	__shared__ char mixtabs[8 * 1024];
 	if (threadIdx.x < 256) {
-		*((uint32_t*)mixtabs + (     threadIdx.x)) = tex1Dfetch(t0up1, threadIdx.x);
-		*((uint32_t*)mixtabs + ( 256+threadIdx.x)) = tex1Dfetch(t0dn1, threadIdx.x);
-		*((uint32_t*)mixtabs + ( 512+threadIdx.x)) = tex1Dfetch(t1up1, threadIdx.x);
-		*((uint32_t*)mixtabs + ( 768+threadIdx.x)) = tex1Dfetch(t1dn1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1024+threadIdx.x)) = tex1Dfetch(t2up1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1280+threadIdx.x)) = tex1Dfetch(t2dn1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1536+threadIdx.x)) = tex1Dfetch(t3up1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1792+threadIdx.x)) = tex1Dfetch(t3dn1, threadIdx.x);
+		*((uint32_t*)mixtabs + (     threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T0up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + ( 256+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T0dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + ( 512+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T1up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + ( 768+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T1dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1024+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T2up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1280+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T2dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1536+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T3up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1792+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T3dn, (unsigned int)threadIdx.x);
 	}
 	__syncthreads();
 #endif
@@ -207,39 +212,63 @@ void quark_groestl512_gpu_hash_64(uint32_t threads, uint32_t startNounce, uint32
 #endif
 }
 
-#define texDef(id, texname, texmem, texsource, texsize) { \
-	unsigned int *texmem; \
-	cudaMalloc(&texmem, texsize); \
-	d_textures[thr_id][id] = texmem; \
-	cudaMemcpy(texmem, texsource, texsize, cudaMemcpyHostToDevice); \
-	texname.normalized = 0; \
-	texname.filterMode = cudaFilterModePoint; \
-	texname.addressMode[0] = cudaAddressModeClamp; \
-	{ cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>(); \
-	  cudaBindTexture(NULL, &texname, texmem, &channelDesc, texsize ); \
-	} \
+static void createTexObject(cudaTextureObject_t* texObj, unsigned int* devPtr, size_t sizeInBytes) {
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>();
+    CREATE_TEXTURE_OBJECT_1D(*texObj, devPtr, channelDesc, sizeInBytes);
 }
 
 __host__
 void quark_groestl512_sm20_init(int thr_id, uint32_t threads)
 {
-	// Texturen mit obigem Makro initialisieren
-	texDef(0, t0up1, d_T0up, T0up_cpu, sizeof(uint32_t)*256);
-	texDef(1, t0dn1, d_T0dn, T0dn_cpu, sizeof(uint32_t)*256);
-	texDef(2, t1up1, d_T1up, T1up_cpu, sizeof(uint32_t)*256);
-	texDef(3, t1dn1, d_T1dn, T1dn_cpu, sizeof(uint32_t)*256);
-	texDef(4, t2up1, d_T2up, T2up_cpu, sizeof(uint32_t)*256);
-	texDef(5, t2dn1, d_T2dn, T2dn_cpu, sizeof(uint32_t)*256);
-	texDef(6, t3up1, d_T3up, T3up_cpu, sizeof(uint32_t)*256);
-	texDef(7, t3dn1, d_T3dn, T3dn_cpu, sizeof(uint32_t)*256);
+	// Initialize textures with CUDA 12 texture objects
+	cudaMalloc(&d_textures[thr_id][0], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][0], T0up_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T0up[thr_id], d_textures[thr_id][0], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][1], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][1], T0dn_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T0dn[thr_id], d_textures[thr_id][1], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][2], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][2], T1up_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T1up[thr_id], d_textures[thr_id][2], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][3], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][3], T1dn_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T1dn[thr_id], d_textures[thr_id][3], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][4], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][4], T2up_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T2up[thr_id], d_textures[thr_id][4], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][5], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][5], T2dn_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T2dn[thr_id], d_textures[thr_id][5], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][6], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][6], T3up_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T3up[thr_id], d_textures[thr_id][6], sizeof(uint32_t)*256);
+
+	cudaMalloc(&d_textures[thr_id][7], sizeof(uint32_t)*256);
+	cudaMemcpy(d_textures[thr_id][7], T3dn_cpu, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	createTexObject(&d_tex_T3dn[thr_id], d_textures[thr_id][7], sizeof(uint32_t)*256);
 }
 
 __host__
 void quark_groestl512_sm20_free(int thr_id)
 {
 	if (!d_textures[thr_id][0]) return;
-	for (int i=0; i<8; i++)
+	for (int i=0; i<8; i++) {
+		if (d_tex_T0up[thr_id] && i == 0) cudaDestroyTextureObject(d_tex_T0up[thr_id]);
+		if (d_tex_T0dn[thr_id] && i == 1) cudaDestroyTextureObject(d_tex_T0dn[thr_id]);
+		if (d_tex_T1up[thr_id] && i == 2) cudaDestroyTextureObject(d_tex_T1up[thr_id]);
+		if (d_tex_T1dn[thr_id] && i == 3) cudaDestroyTextureObject(d_tex_T1dn[thr_id]);
+		if (d_tex_T2up[thr_id] && i == 4) cudaDestroyTextureObject(d_tex_T2up[thr_id]);
+		if (d_tex_T2dn[thr_id] && i == 5) cudaDestroyTextureObject(d_tex_T2dn[thr_id]);
+		if (d_tex_T3up[thr_id] && i == 6) cudaDestroyTextureObject(d_tex_T3up[thr_id]);
+		if (d_tex_T3dn[thr_id] && i == 7) cudaDestroyTextureObject(d_tex_T3dn[thr_id]);
 		cudaFree(d_textures[thr_id][i]);
+	}
 	d_textures[thr_id][0] = NULL;
 }
 
@@ -251,7 +280,11 @@ void quark_groestl512_sm20_hash_64(int thr_id, uint32_t threads, uint32_t startN
 	dim3 grid((threads + threadsperblock-1)/threadsperblock);
 	dim3 block(threadsperblock);
 
-	quark_groestl512_gpu_hash_64<<<grid, block>>>(threads, startNounce, d_hash, d_nonceVector);
+	quark_groestl512_gpu_hash_64<<<grid, block>>>(threads, startNounce, d_hash, d_nonceVector,
+		d_tex_T0up[thr_id], d_tex_T0dn[thr_id],
+		d_tex_T1up[thr_id], d_tex_T1dn[thr_id],
+		d_tex_T2up[thr_id], d_tex_T2dn[thr_id],
+		d_tex_T3up[thr_id], d_tex_T3dn[thr_id]);
 }
 
 __host__
@@ -262,8 +295,16 @@ void quark_doublegroestl512_sm20_hash_64(int thr_id, uint32_t threads, uint32_t 
 	dim3 grid((threads + threadsperblock-1)/threadsperblock);
 	dim3 block(threadsperblock);
 
-	quark_groestl512_gpu_hash_64<<<grid, block>>>(threads, startNounce, d_hash, d_nonceVector);
-	quark_groestl512_gpu_hash_64<<<grid, block>>>(threads, startNounce, d_hash, d_nonceVector);
+	quark_groestl512_gpu_hash_64<<<grid, block>>>(threads, startNounce, d_hash, d_nonceVector,
+		d_tex_T0up[thr_id], d_tex_T0dn[thr_id],
+		d_tex_T1up[thr_id], d_tex_T1dn[thr_id],
+		d_tex_T2up[thr_id], d_tex_T2dn[thr_id],
+		d_tex_T3up[thr_id], d_tex_T3dn[thr_id]);
+	quark_groestl512_gpu_hash_64<<<grid, block>>>(threads, startNounce, d_hash, d_nonceVector,
+		d_tex_T0up[thr_id], d_tex_T0dn[thr_id],
+		d_tex_T1up[thr_id], d_tex_T1dn[thr_id],
+		d_tex_T2up[thr_id], d_tex_T2dn[thr_id],
+		d_tex_T3up[thr_id], d_tex_T3dn[thr_id]);
 }
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
@@ -275,21 +316,25 @@ void quark_doublegroestl512_sm20_hash_64(int thr_id, uint32_t threads, uint32_t 
 
 __global__
 //__launch_bounds__(256)
-void groestl512_gpu_hash_80_sm2(const uint32_t threads, const uint32_t startNounce, uint32_t * g_outhash)
+void groestl512_gpu_hash_80_sm2(const uint32_t threads, const uint32_t startNounce, uint32_t * g_outhash,
+	cudaTextureObject_t tex_T0up, cudaTextureObject_t tex_T0dn,
+	cudaTextureObject_t tex_T1up, cudaTextureObject_t tex_T1dn,
+	cudaTextureObject_t tex_T2up, cudaTextureObject_t tex_T2dn,
+	cudaTextureObject_t tex_T3up, cudaTextureObject_t tex_T3dn)
 {
 #if __CUDA_ARCH__ < 300 || defined(_DEBUG)
 
 #if USE_SHARED
 	__shared__ char mixtabs[8 * 1024];
 	if (threadIdx.x < 256) {
-		*((uint32_t*)mixtabs + (     threadIdx.x)) = tex1Dfetch(t0up1, threadIdx.x);
-		*((uint32_t*)mixtabs + ( 256+threadIdx.x)) = tex1Dfetch(t0dn1, threadIdx.x);
-		*((uint32_t*)mixtabs + ( 512+threadIdx.x)) = tex1Dfetch(t1up1, threadIdx.x);
-		*((uint32_t*)mixtabs + ( 768+threadIdx.x)) = tex1Dfetch(t1dn1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1024+threadIdx.x)) = tex1Dfetch(t2up1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1280+threadIdx.x)) = tex1Dfetch(t2dn1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1536+threadIdx.x)) = tex1Dfetch(t3up1, threadIdx.x);
-		*((uint32_t*)mixtabs + (1792+threadIdx.x)) = tex1Dfetch(t3dn1, threadIdx.x);
+		*((uint32_t*)mixtabs + (     threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T0up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + ( 256+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T0dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + ( 512+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T1up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + ( 768+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T1dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1024+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T2up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1280+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T2dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1536+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T3up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1792+threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T3dn, (unsigned int)threadIdx.x);
 	}
 	__syncthreads();
 #endif

@@ -204,7 +204,11 @@ void groestl512_cuda_hash_80(const int thr_id, const uint32_t threads, const uin
 		dim3 grid((threads + threadsperblock-1)/threadsperblock);
 		dim3 block(threadsperblock);
 
-		groestl512_gpu_hash_80_sm2 <<<grid, block>>> (threads, startNounce, d_hash);
+		groestl512_gpu_hash_80_sm2 <<<grid, block>>> (threads, startNounce, d_hash,
+			d_tex_T0up[thr_id], d_tex_T0dn[thr_id],
+			d_tex_T1up[thr_id], d_tex_T1dn[thr_id],
+			d_tex_T2up[thr_id], d_tex_T2dn[thr_id],
+			d_tex_T3up[thr_id], d_tex_T3dn[thr_id]);
 	}
 }
 

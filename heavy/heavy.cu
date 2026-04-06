@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <openssl/sha.h>
+#include <openssl/evp.h>
 #include <cuda.h>
 #include <map>
 
@@ -316,7 +316,7 @@ extern "C" void free_heavy(int thr_id)
 	if (!init[thr_id])
 		return;
 
-	cudaThreadSynchronize();
+	cudaDeviceSynchronize();
 
 	cudaFree(heavy_nonceVector[thr_id]);
 
@@ -377,7 +377,6 @@ void heavycoin_hash(uchar* output, const uchar* input, int len)
 	uint32_t hash4[16];
 	uint32_t hash5[16];
 	uint32_t *final;
-	SHA256_CTX ctx;
 	sph_keccak512_context keccakCtx;
 	sph_groestl512_context groestlCtx;
 	sph_blake512_context blakeCtx;
@@ -391,10 +390,13 @@ void heavycoin_hash(uchar* output, const uchar* input, int len)
 	 *
 	 * N.B. '+' is concatenation.
 	 */
-	SHA256_Init(&ctx);
-	SHA256_Update(&ctx, input, len);
-	SHA256_Update(&ctx, hash1, sizeof(hash1));
-	SHA256_Final(hash2, &ctx);
+	EVP_MD_CTX *sha256_ctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(sha256_ctx, EVP_sha256(), NULL);
+	EVP_DigestUpdate(sha256_ctx, input, len);
+	EVP_DigestUpdate(sha256_ctx, hash1, sizeof(hash1));
+	unsigned int sha256_len = 0;
+	EVP_DigestFinal_ex(sha256_ctx, hash2, &sha256_len);
+	EVP_MD_CTX_free(sha256_ctx);
 
 	/* Additional security: Do not rely on a single cryptographic hash
 	 * function.  Instead, combine the outputs of 4 of the most secure

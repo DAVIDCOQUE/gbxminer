@@ -4,21 +4,21 @@
 #include "sph/sph_fugue.h"
 
 #include "cuda_helper.h"
-#include <host_defines.h>
 
 #define USE_SHARED 1
 
 uint32_t *d_fugue256_hashoutput[MAX_GPUS];
 static uint32_t *d_resultNonce[MAX_GPUS];
-static unsigned int* d_textures[MAX_GPUS][8];
+static unsigned int* d_textures[MAX_GPUS][4];
+
+// Device pointers for mix table lookups (set via cudaMemcpyToSymbol)
+__device__ unsigned int *d_mixTab0;
+__device__ unsigned int *d_mixTab1;
+__device__ unsigned int *d_mixTab2;
+__device__ unsigned int *d_mixTab3;
 
 __constant__ uint32_t GPUstate[30]; // Single GPU
 __constant__ uint32_t pTarget[8]; // Single GPU
-
-static texture<unsigned int, 1, cudaReadModeElementType> mixTab0Tex;
-static texture<unsigned int, 1, cudaReadModeElementType> mixTab1Tex;
-static texture<unsigned int, 1, cudaReadModeElementType> mixTab2Tex;
-static texture<unsigned int, 1, cudaReadModeElementType> mixTab3Tex;
 
 #if USE_SHARED
 #define mixtab0(x) (*((uint32_t*)mixtabs + (    (x))))
@@ -554,10 +554,10 @@ fugue256_gpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, void *outp
 #if USE_SHARED
 	extern __shared__ char mixtabs[];
 
-	*((uint32_t*)mixtabs + (    threadIdx.x)) = tex1Dfetch(mixTab0Tex, threadIdx.x);
-	*((uint32_t*)mixtabs + (256+threadIdx.x)) = tex1Dfetch(mixTab1Tex, threadIdx.x);
-	*((uint32_t*)mixtabs + (512+threadIdx.x)) = tex1Dfetch(mixTab2Tex, threadIdx.x);
-	*((uint32_t*)mixtabs + (768+threadIdx.x)) = tex1Dfetch(mixTab3Tex, threadIdx.x);
+	*((uint32_t*)mixtabs + (    threadIdx.x)) = d_mixTab0[threadIdx.x];
+	*((uint32_t*)mixtabs + (256+threadIdx.x)) = d_mixTab1[threadIdx.x];
+	*((uint32_t*)mixtabs + (512+threadIdx.x)) = d_mixTab2[threadIdx.x];
+	*((uint32_t*)mixtabs + (768+threadIdx.x)) = d_mixTab3[threadIdx.x];
 
 	__syncthreads();
 #endif
@@ -708,27 +708,21 @@ fugue256_gpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, void *outp
 	}
 }
 
-#define texDef(id, texname, texmem, texsource, texsize) { \
-	unsigned int *texmem; \
-	cudaMalloc(&texmem, texsize); \
-	d_textures[thr_id][id] = texmem; \
-	cudaMemcpy(texmem, texsource, texsize, cudaMemcpyHostToDevice); \
-	texname.normalized = 0; \
-	texname.filterMode = cudaFilterModePoint; \
-	texname.addressMode[0] = cudaAddressModeClamp; \
-	{ cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>(); \
-	  cudaBindTexture(NULL, &texname, texmem, &channelDesc, texsize ); \
-	} \
+// Macro to initialize lookup tables (replacing deprecated texture binding)
+#define texDef(id, devsymbol, texsource, texsize) { \
+	cudaMalloc(&d_textures[thr_id][id], texsize); \
+	cudaMemcpy(d_textures[thr_id][id], texsource, texsize, cudaMemcpyHostToDevice); \
+	cudaMemcpyToSymbol(devsymbol, &d_textures[thr_id][id], sizeof(unsigned int*)); \
 }
 
 __host__
 void fugue256_cpu_init(int thr_id, uint32_t threads)
 {
-	// Link the hash tables in the GPU
-	texDef(0, mixTab0Tex, mixTab0m, mixtab0_cpu, sizeof(uint32_t)*256);
-	texDef(1, mixTab1Tex, mixTab1m, mixtab1_cpu, sizeof(uint32_t)*256);
-	texDef(2, mixTab2Tex, mixTab2m, mixtab2_cpu, sizeof(uint32_t)*256);
-	texDef(3, mixTab3Tex, mixTab3m, mixtab3_cpu, sizeof(uint32_t)*256);
+	// Initialize lookup tables using global memory (replacing deprecated texture references)
+	texDef(0, d_mixTab0, mixtab0_cpu, sizeof(uint32_t)*256);
+	texDef(1, d_mixTab1, mixtab1_cpu, sizeof(uint32_t)*256);
+	texDef(2, d_mixTab2, mixtab2_cpu, sizeof(uint32_t)*256);
+	texDef(3, d_mixTab3, mixtab3_cpu, sizeof(uint32_t)*256);
 
 	CUDA_SAFE_CALL(cudaMalloc(&d_fugue256_hashoutput[thr_id], (size_t) 32 * threads));
 	cudaMalloc(&d_resultNonce[thr_id], sizeof(uint32_t));
@@ -740,8 +734,9 @@ void fugue256_cpu_free(int thr_id)
 	cudaFree(d_fugue256_hashoutput[thr_id]);
 	cudaFree(d_resultNonce[thr_id]);
 
-	for (int i=0; i<4; i++)
+	for (int i=0; i<4; i++) {
 		cudaFree(d_textures[thr_id][i]);
+	}
 }
 
 __host__

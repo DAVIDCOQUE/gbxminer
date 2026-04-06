@@ -44,7 +44,11 @@ extern std::map<int, cudaStream_t> context_streams[2];
 extern std::map<int, uint32_t *> context_hash[2];
 
 #ifdef _MSC_VER
+#if defined(__CUDA_ARCH__)
+/* CUDA device code: suppress unsigned/signed mismatch warnings */
+#else
 #pragma warning (disable: 4146)
+#endif
 #endif
 
 /**

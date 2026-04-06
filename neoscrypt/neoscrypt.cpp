@@ -112,8 +112,6 @@ void free_neoscrypt(int thr_id)
 	if (!init[thr_id])
 		return;
 
-	cudaThreadSynchronize();
-
 	neoscrypt_free(thr_id);
 	init[thr_id] = false;
 

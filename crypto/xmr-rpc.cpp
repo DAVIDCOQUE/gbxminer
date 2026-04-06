@@ -75,7 +75,7 @@ static bool opt_quiet_start = true;
 
 static const char * pscratchpad_local_cache = NULL;
 static const char cachedir_suffix[] = "boolberry"; /* scratchpad cache saved as ~/.cache/boolberry/scratchpad.bin */
-static char scratchpad_file[PATH_MAX];
+static char scratchpad_file[PATH_MAX + 64];
 static time_t prev_save = 0;
 static struct scratchpad_hi current_scratchpad_hi;
 static struct addendums_array_entry add_arr[WILD_KECCAK_ADDENDUMS_ARRAY_SIZE];

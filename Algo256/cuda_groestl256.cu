@@ -4,10 +4,26 @@
 #define SPH_T32(x)    ((x) & SPH_C32(0xFFFFFFFF))
 
 #include "cuda_helper.h"
+#include "cuda_texture_helper.h"
 
 static uint32_t *h_GNonces[MAX_GPUS];
 static uint32_t *d_GNonces[MAX_GPUS];
-static unsigned int* d_textures[MAX_GPUS][8];
+static unsigned int* d_T0up[MAX_GPUS];
+static unsigned int* d_T0dn[MAX_GPUS];
+static unsigned int* d_T1up[MAX_GPUS];
+static unsigned int* d_T1dn[MAX_GPUS];
+static unsigned int* d_T2up[MAX_GPUS];
+static unsigned int* d_T2dn[MAX_GPUS];
+static unsigned int* d_T3up[MAX_GPUS];
+static unsigned int* d_T3dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T0up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T0dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T1up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T1dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T2up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T2dn[MAX_GPUS];
+static cudaTextureObject_t d_tex_T3up[MAX_GPUS];
+static cudaTextureObject_t d_tex_T3dn[MAX_GPUS];
 
 __constant__ uint32_t pTarget[8];
 
@@ -45,36 +61,28 @@ __constant__ uint32_t pTarget[8];
 	#define T3up(x) (*((uint32_t*)mixtabs + (1536+(x))))
 	#define T3dn(x) (*((uint32_t*)mixtabs + (1792+(x))))
 	#else
-	#define T0up(x) tex1Dfetch(t0up2, x)
-	#define T0dn(x) tex1Dfetch(t0dn2, x)
-	#define T1up(x) tex1Dfetch(t1up2, x)
-	#define T1dn(x) tex1Dfetch(t1dn2, x)
-	#define T2up(x) tex1Dfetch(t2up2, x)
-	#define T2dn(x) tex1Dfetch(t2dn2, x)
-	#define T3up(x) tex1Dfetch(t3up2, x)
-	#define T3dn(x) tex1Dfetch(t3dn2, x)
+	#define T0up(x) tex1Dfetch<unsigned int>(d_tex_T0up[blockIdx.x], x)
+	#define T0dn(x) tex1Dfetch<unsigned int>(d_tex_T0dn[blockIdx.x], x)
+	#define T1up(x) tex1Dfetch<unsigned int>(d_tex_T1up[blockIdx.x], x)
+	#define T1dn(x) tex1Dfetch<unsigned int>(d_tex_T1dn[blockIdx.x], x)
+	#define T2up(x) tex1Dfetch<unsigned int>(d_tex_T2up[blockIdx.x], x)
+	#define T2dn(x) tex1Dfetch<unsigned int>(d_tex_T2dn[blockIdx.x], x)
+	#define T3up(x) tex1Dfetch<unsigned int>(d_tex_T3up[blockIdx.x], x)
+	#define T3dn(x) tex1Dfetch<unsigned int>(d_tex_T3dn[blockIdx.x], x)
 	#endif
 #else
 	#define USE_SHARED 1
 	// a healthy mix between shared and textured access provides the highest speed on Compute 3.0 and 3.5!
 	#define T0up(x) (*((uint32_t*)mixtabs + (    (x))))
-	#define T0dn(x) tex1Dfetch(t0dn2, x)
-	#define T1up(x) tex1Dfetch(t1up2, x)
+	#define T0dn(x) tex1Dfetch<unsigned int>(d_tex_T0dn[blockIdx.x], x)
+	#define T1up(x) tex1Dfetch<unsigned int>(d_tex_T1up[blockIdx.x], x)
 	#define T1dn(x) (*((uint32_t*)mixtabs + (768+(x))))
-	#define T2up(x) tex1Dfetch(t2up2, x)
+	#define T2up(x) tex1Dfetch<unsigned int>(d_tex_T2up[blockIdx.x], x)
 	#define T2dn(x) (*((uint32_t*)mixtabs + (1280+(x))))
 	#define T3up(x) (*((uint32_t*)mixtabs + (1536+(x))))
-	#define T3dn(x) tex1Dfetch(t3dn2, x)
+	#define T3dn(x) tex1Dfetch<unsigned int>(d_tex_T3dn[blockIdx.x], x)
 #endif
 
-static texture<unsigned int, 1, cudaReadModeElementType> t0up2;
-static texture<unsigned int, 1, cudaReadModeElementType> t0dn2;
-static texture<unsigned int, 1, cudaReadModeElementType> t1up2;
-static texture<unsigned int, 1, cudaReadModeElementType> t1dn2;
-static texture<unsigned int, 1, cudaReadModeElementType> t2up2;
-static texture<unsigned int, 1, cudaReadModeElementType> t2dn2;
-static texture<unsigned int, 1, cudaReadModeElementType> t3up2;
-static texture<unsigned int, 1, cudaReadModeElementType> t3dn2;
 
 #define RSTT(d0, d1, a, b0, b1, b2, b3, b4, b5, b6, b7) do { \
 	t[d0] = T0up(B32_0(a[b0])) \
@@ -176,20 +184,24 @@ void groestl256_perm_Q(uint32_t thread, uint32_t *a, char *mixtabs)
 }
 
 __global__ __launch_bounds__(256,1)
-void groestl256_gpu_hash_32(uint32_t threads, uint32_t startNounce, uint64_t *outputHash, uint32_t *resNonces)
+void groestl256_gpu_hash_32(uint32_t threads, uint32_t startNounce, uint64_t *outputHash, uint32_t *resNonces,
+	cudaTextureObject_t tex_T0up, cudaTextureObject_t tex_T0dn,
+	cudaTextureObject_t tex_T1up, cudaTextureObject_t tex_T1dn,
+	cudaTextureObject_t tex_T2up, cudaTextureObject_t tex_T2dn,
+	cudaTextureObject_t tex_T3up, cudaTextureObject_t tex_T3dn)
 {
 #if USE_SHARED
 	extern __shared__ char mixtabs[];
 
 	if (threadIdx.x < 256) {
-		*((uint32_t*)mixtabs + (threadIdx.x)) = tex1Dfetch(t0up2, threadIdx.x);
-		*((uint32_t*)mixtabs + (256 + threadIdx.x)) = tex1Dfetch(t0dn2, threadIdx.x);
-		*((uint32_t*)mixtabs + (512 + threadIdx.x)) = tex1Dfetch(t1up2, threadIdx.x);
-		*((uint32_t*)mixtabs + (768 + threadIdx.x)) = tex1Dfetch(t1dn2, threadIdx.x);
-		*((uint32_t*)mixtabs + (1024 + threadIdx.x)) = tex1Dfetch(t2up2, threadIdx.x);
-		*((uint32_t*)mixtabs + (1280 + threadIdx.x)) = tex1Dfetch(t2dn2, threadIdx.x);
-		*((uint32_t*)mixtabs + (1536 + threadIdx.x)) = tex1Dfetch(t3up2, threadIdx.x);
-		*((uint32_t*)mixtabs + (1792 + threadIdx.x)) = tex1Dfetch(t3dn2, threadIdx.x);
+		*((uint32_t*)mixtabs + (threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T0up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (256 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T0dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (512 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T1up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (768 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T1dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1024 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T2up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1280 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T2dn, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1536 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T3up, (unsigned int)threadIdx.x);
+		*((uint32_t*)mixtabs + (1792 + threadIdx.x)) = tex1Dfetch<unsigned int>(tex_T3dn, (unsigned int)threadIdx.x);
 	}
 
 	__syncthreads();
@@ -250,31 +262,29 @@ void groestl256_gpu_hash_32(uint32_t threads, uint32_t startNounce, uint64_t *ou
 	}
 }
 
-#define texDef(id, texname, texmem, texsource, texsize) { \
-	unsigned int *texmem; \
-	cudaMalloc(&texmem, texsize); \
-	d_textures[thr_id][id] = texmem; \
-	cudaMemcpy(texmem, texsource, texsize, cudaMemcpyHostToDevice); \
-	texname.normalized = 0; \
-	texname.filterMode = cudaFilterModePoint; \
-	texname.addressMode[0] = cudaAddressModeClamp; \
-	{ cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>(); \
-	  cudaBindTexture(NULL, &texname, texmem, &channelDesc, texsize ); \
-	} \
+static void createTexObject(cudaTextureObject_t* texObj, unsigned int* devPtr, size_t sizeInBytes) {
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>();
+    CREATE_TEXTURE_OBJECT_1D(*texObj, devPtr, channelDesc, sizeInBytes);
+}
+
+#define texDef(texObjVar, devPtrVar, texsource, texsize) { \
+	cudaMalloc(&devPtrVar[thr_id], texsize); \
+	cudaMemcpy(devPtrVar[thr_id], texsource, texsize, cudaMemcpyHostToDevice); \
+	createTexObject(&d_tex_##texObjVar[thr_id], devPtrVar[thr_id], texsize); \
 }
 
 __host__
 void groestl256_cpu_init(int thr_id, uint32_t threads)
 {
-	// Texturen mit obigem Makro initialisieren
-	texDef(0, t0up2, d_T0up, T0up_cpu, sizeof(uint32_t) * 256);
-	texDef(1, t0dn2, d_T0dn, T0dn_cpu, sizeof(uint32_t) * 256);
-	texDef(2, t1up2, d_T1up, T1up_cpu, sizeof(uint32_t) * 256);
-	texDef(3, t1dn2, d_T1dn, T1dn_cpu, sizeof(uint32_t) * 256);
-	texDef(4, t2up2, d_T2up, T2up_cpu, sizeof(uint32_t) * 256);
-	texDef(5, t2dn2, d_T2dn, T2dn_cpu, sizeof(uint32_t) * 256);
-	texDef(6, t3up2, d_T3up, T3up_cpu, sizeof(uint32_t) * 256);
-	texDef(7, t3dn2, d_T3dn, T3dn_cpu, sizeof(uint32_t) * 256);
+	// Initialize textures with the macro above
+	texDef(T0up, d_T0up, T0up_cpu, sizeof(uint32_t) * 256);
+	texDef(T0dn, d_T0dn, T0dn_cpu, sizeof(uint32_t) * 256);
+	texDef(T1up, d_T1up, T1up_cpu, sizeof(uint32_t) * 256);
+	texDef(T1dn, d_T1dn, T1dn_cpu, sizeof(uint32_t) * 256);
+	texDef(T2up, d_T2up, T2up_cpu, sizeof(uint32_t) * 256);
+	texDef(T2dn, d_T2dn, T2dn_cpu, sizeof(uint32_t) * 256);
+	texDef(T3up, d_T3up, T3up_cpu, sizeof(uint32_t) * 256);
+	texDef(T3dn, d_T3dn, T3dn_cpu, sizeof(uint32_t) * 256);
 
 	cudaMalloc(&d_GNonces[thr_id], 2*sizeof(uint32_t));
 	cudaMallocHost(&h_GNonces[thr_id], 2*sizeof(uint32_t));
@@ -283,8 +293,14 @@ void groestl256_cpu_init(int thr_id, uint32_t threads)
 __host__
 void groestl256_cpu_free(int thr_id)
 {
-	for (int i=0; i<8; i++)
-		cudaFree(d_textures[thr_id][i]);
+	cudaFree(d_T0up[thr_id]);
+	cudaFree(d_T0dn[thr_id]);
+	cudaFree(d_T1up[thr_id]);
+	cudaFree(d_T1dn[thr_id]);
+	cudaFree(d_T2up[thr_id]);
+	cudaFree(d_T2dn[thr_id]);
+	cudaFree(d_T3up[thr_id]);
+	cudaFree(d_T3dn[thr_id]);
 
 	cudaFree(d_GNonces[thr_id]);
 	cudaFreeHost(h_GNonces[thr_id]);
@@ -306,7 +322,11 @@ uint32_t groestl256_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNoun
 #else
 	size_t shared_size = 0;
 #endif
-	groestl256_gpu_hash_32<<<grid, block, shared_size>>>(threads, startNounce, d_outputHash, d_GNonces[thr_id]);
+	groestl256_gpu_hash_32<<<grid, block, shared_size>>>(threads, startNounce, d_outputHash, d_GNonces[thr_id],
+		d_tex_T0up[thr_id], d_tex_T0dn[thr_id],
+		d_tex_T1up[thr_id], d_tex_T1dn[thr_id],
+		d_tex_T2up[thr_id], d_tex_T2dn[thr_id],
+		d_tex_T3up[thr_id], d_tex_T3dn[thr_id]);
 
 	MyStreamSynchronize(NULL, order, thr_id);
 

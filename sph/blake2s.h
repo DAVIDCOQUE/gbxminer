@@ -111,6 +111,7 @@ typedef struct __blake2s_param
 	uint8_t  salt[BLAKE2S_SALTBYTES]; // 24
 	uint8_t  personal[BLAKE2S_PERSONALBYTES];  // 32
 } blake2s_param;
+#pragma pack(pop)
 
 ALIGN( 64 ) typedef struct __blake2s_state
 {
@@ -121,7 +122,6 @@ ALIGN( 64 ) typedef struct __blake2s_state
 	size_t   buflen;
 	uint8_t  last_node;
 } blake2s_state;
-#pragma pack(pop)
 
 #if defined(__cplusplus)
 extern "C" {

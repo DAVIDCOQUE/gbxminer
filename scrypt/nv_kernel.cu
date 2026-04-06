@@ -17,6 +17,7 @@
 #include "miner.h"
 #include "salsa_kernel.h"
 #include "nv_kernel.h"
+#include "cuda_texture_helper.h"
 
 #define THREADS_PER_WU 1  // single thread per hash
 
@@ -39,9 +40,9 @@ template <int ALGO, int TEX_DIM> __global__ void nv_scrypt_core_kernelB_LG(uint3
 // scratchbuf constants (pointers to scratch buffer for each work unit)
 __constant__ uint32_t* c_V[TOTAL_WARP_LIMIT];
 
-// using texture references for the "tex" variants of the B kernels
-texture<uint4, 1, cudaReadModeElementType> texRef1D_4_V;
-texture<uint4, 2, cudaReadModeElementType> texRef2D_4_V;
+// using texture objects for the "tex" variants of the B kernels (CUDA 12 compatible)
+static cudaTextureObject_t texObj1D_4_V[MAX_GPUS] = {0};
+static cudaTextureObject_t texObj2D_4_V[MAX_GPUS] = {0};
 
 // iteration count N
 __constant__ uint32_t c_N;
@@ -52,39 +53,44 @@ NVKernel::NVKernel() : KernelInterface()
 {
 }
 
-bool NVKernel::bindtexture_1D(uint32_t *d_V, size_t size)
+bool NVKernel::bindtexture_1D(uint32_t *d_V, size_t size, int thr_id)
 {
 	cudaChannelFormatDesc channelDesc4 = cudaCreateChannelDesc<uint4>();
-	texRef1D_4_V.normalized = 0;
-	texRef1D_4_V.filterMode = cudaFilterModePoint;
-	texRef1D_4_V.addressMode[0] = cudaAddressModeClamp;
-	checkCudaErrors(cudaBindTexture(NULL, &texRef1D_4_V, d_V, &channelDesc4, size));
+	CREATE_TEXTURE_OBJECT_1D(texObj1D_4_V[thr_id], d_V, channelDesc4, size);
 	return true;
 }
 
-bool NVKernel::bindtexture_2D(uint32_t *d_V, int width, int height, size_t pitch)
+bool NVKernel::bindtexture_2D(uint32_t *d_V, int width, int height, size_t pitch, int thr_id)
 {
 	cudaChannelFormatDesc channelDesc4 = cudaCreateChannelDesc<uint4>();
-	texRef2D_4_V.normalized = 0;
-	texRef2D_4_V.filterMode = cudaFilterModePoint;
-	texRef2D_4_V.addressMode[0] = cudaAddressModeClamp;
-	texRef2D_4_V.addressMode[1] = cudaAddressModeClamp;
 	// maintain texture width of TEXWIDTH (max. limit is 65000)
 	while (width > TEXWIDTH) { width /= 2; height *= 2; pitch /= 2; }
 	while (width < TEXWIDTH) { width *= 2; height = (height+1)/2; pitch *= 2; }
-	checkCudaErrors(cudaBindTexture2D(NULL, &texRef2D_4_V, d_V, &channelDesc4, width, height, pitch));
+	CREATE_TEXTURE_OBJECT_2D(texObj2D_4_V[thr_id], d_V, channelDesc4, (size_t)width, (size_t)height, pitch);
 	return true;
 }
 
 bool NVKernel::unbindtexture_1D()
 {
-	checkCudaErrors(cudaUnbindTexture(texRef1D_4_V));
+	// Destroy texture objects to prevent resource leaks
+	for (int i = 0; i < MAX_GPUS; i++) {
+		if (texObj1D_4_V[i] != 0) {
+			cudaDestroyTextureObject(texObj1D_4_V[i]);
+			texObj1D_4_V[i] = 0;
+		}
+	}
 	return true;
 }
 
 bool NVKernel::unbindtexture_2D()
 {
-	checkCudaErrors(cudaUnbindTexture(texRef2D_4_V));
+	// Destroy texture objects to prevent resource leaks
+	for (int i = 0; i < MAX_GPUS; i++) {
+		if (texObj2D_4_V[i] != 0) {
+			cudaDestroyTextureObject(texObj2D_4_V[i]);
+			texObj2D_4_V[i] = 0;
+		}
+	}
 	return true;
 }
 
@@ -276,21 +282,21 @@ template <int TEX_DIM> __device__ __forceinline__ void __transposed_read_BC(cons
 	uint4 T1[8], T2[8];
 	const uint4 *loc;
 	loc = &S[(spacing*2*(32*tile   ) +  lane8      + 8*__shfl(row, 0, 8))];
-	T1[7] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[7] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+4 ) + (lane8+7)%8 + 8*__shfl(row, 1, 8))];
-	T1[6] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[6] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+8 ) + (lane8+6)%8 + 8*__shfl(row, 2, 8))];
-	T1[5] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[5] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+12) + (lane8+5)%8 + 8*__shfl(row, 3, 8))];
-	T1[4] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[4] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+16) + (lane8+4)%8 + 8*__shfl(row, 4, 8))];
-	T1[3] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[3] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+20) + (lane8+3)%8 + 8*__shfl(row, 5, 8))];
-	T1[2] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[2] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+24) + (lane8+2)%8 + 8*__shfl(row, 6, 8))];
-	T1[1] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[1] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 	loc = &S[(spacing*2*(32*tile+28) + (lane8+1)%8 + 8*__shfl(row, 7, 8))];
-	T1[0] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch(texRef1D_4_V, loc-(uint4*)c_V[0]) : tex2D(texRef2D_4_V, 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
+	T1[0] = TEX_DIM==0 ? __ldg(loc) : TEX_DIM==1 ? tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], loc-(uint4*)c_V[0]) : tex2D<uint4>(texObj2D_4_V[blockIdx.x], 0.5f + ((loc-(uint4*)c_V[0])%TEXWIDTH), 0.5f + ((loc-(uint4*)c_V[0])/TEXWIDTH));
 
 	// rotate columns down using a barrel shifter simulation
 	// column X is rotated down by (X+1) items, or up by (8-(X+1)) = (7-X) items

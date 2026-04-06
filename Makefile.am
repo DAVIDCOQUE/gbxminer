@@ -22,8 +22,6 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  gbxminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
 			  nvsettings.cpp \
-			  equi/equi-stratum.cpp equi/equi.cpp equi/blake2/blake2bx.cpp \
-			  equi/equihash.cpp equi/cuda_equi.cu \
 			  heavy/heavy.cu \
 			  heavy/cuda_blake512.cu heavy/cuda_blake512.h \
 			  heavy/cuda_combine.cu heavy/cuda_combine.h \
@@ -52,6 +50,7 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  crypto/cryptolight.cu crypto/cryptolight-core.cu crypto/cryptolight-cpu.cpp \
 			  crypto/cryptonight.cu crypto/cryptonight-core.cu crypto/cryptonight-extra.cu \
 			  crypto/cryptonight-cpu.cpp crypto/oaes_lib.cpp crypto/aesb.cpp crypto/cpu/c_keccak.c \
+			  equi/equi-stratum.cpp \
 			  JHA/jha.cu JHA/jackpotcoin.cu JHA/cuda_jha_keccak512.cu \
 			  JHA/cuda_jha_compactionTest.cu cuda_checkhash.cu \
 			  quark/cuda_jh512.cu quark/cuda_quark_blake512.cu quark/cuda_quark_groestl512.cu quark/cuda_skein512.cu \
@@ -86,12 +85,17 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  phi/phi.cu phi/phi2.cu phi/cuda_phi2.cu phi/cuda_phi2_cubehash512.cu x11/cuda_streebog_maxwell.cu \
 			  x11/c11.cu x11/s3.cu x11/sib.cu x11/veltor.cu x11/cuda_streebog.cu
 
-# scrypt
-gbxminer_SOURCES += scrypt.cpp scrypt-jane.cpp \
+if !ARCH_ARM64
+  # equihash
+  gbxminer_SOURCES += equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu
+
+  # scrypt
+  gbxminer_SOURCES += scrypt.cpp scrypt-jane.cpp \
     scrypt/blake.cu scrypt/keccak.cu scrypt/sha256.cu \
     scrypt/salsa_kernel.cu scrypt/test_kernel.cu \
     scrypt/fermi_kernel.cu scrypt/kepler_kernel.cu \
     scrypt/nv_kernel.cu scrypt/nv_kernel2.cu scrypt/titan_kernel.cu
+endif
 
 if HAVE_NVML
 nvml_defs = -DUSE_WRAPNVML
@@ -148,6 +152,11 @@ nvcc_ARCH += -gencode=arch=compute_90,code=sm_90
 
 nvcc_FLAGS = $(nvcc_ARCH) @CUDA_INCLUDES@ -I. @CUDA_CFLAGS@
 nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v"
+# CUDA 12 defaults to --std=c++17.  Several legacy constructs in scrypt/ and
+# equi/ (e.g. variable-length arrays in device code, non-constexpr initialisers)
+# are ill-formed under C++17 strict mode.  Pin to C++14, which is the newest
+# standard that compiles this tree cleanly without source changes.
+nvcc_FLAGS += --std=c++14
 
 # we're now targeting all major compute architectures within one binary.
 .cu.o:
@@ -202,26 +211,7 @@ quark/cuda_quark_compactionTest.o: quark/cuda_quark_compactionTest.cu
 JHA/cuda_jha_compactionTest.o: JHA/cuda_jha_compactionTest.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
 
-# This object does not use cuda device code but call the different kernels (autotune)
-scrypt/salsa_kernel.o: scrypt/salsa_kernel.cu
-	$(NVCC) $(JANSSON_INCLUDES) -I. @CUDA_INCLUDES@ @CUDA_CFLAGS@ -gencode=arch=compute_30,code=\"sm_30,compute_30\" -o $@ -c $<
-
-# These kernels are for older devices (SM)
-
-scrypt/test_kernel.o: scrypt/test_kernel.cu
-	$(NVCC) $(JANSSON_INCLUDES) -I. @CUDA_INCLUDES@ @CUDA_CFLAGS@ -gencode=arch=compute_30,code=\"sm_30,compute_30\" -o $@ -c $<
-
-scrypt/fermi_kernel.o: scrypt/fermi_kernel.cu
-	$(NVCC) $(JANSSON_INCLUDES) -I. @CUDA_INCLUDES@ @CUDA_CFLAGS@ -gencode=arch=compute_30,code=\"sm_30,compute_30\" -o $@ -c $<
-
-scrypt/kepler_kernel.o: scrypt/kepler_kernel.cu
-	$(NVCC) $(JANSSON_INCLUDES) -I. @CUDA_INCLUDES@ @CUDA_CFLAGS@ -gencode=arch=compute_30,code=\"sm_30,compute_30\" -o $@ -c $<
-
-scrypt/nv_kernel.o: scrypt/nv_kernel.cu
-	$(NVCC) $(JANSSON_INCLUDES) -I. @CUDA_INCLUDES@ @CUDA_CFLAGS@ -gencode=arch=compute_30,code=\"sm_30,compute_30\" -o $@ -c $<
-
-scrypt/titan_kernel.o: scrypt/titan_kernel.cu
-	$(NVCC) $(nvcc_FLAGS) -gencode=arch=compute_35,code=\"sm_35,compute_35\" -o $@ -c $<
+<
 
 skein.o: skein.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<

@@ -58,7 +58,7 @@ static inline int fls64(uint64_t x)
 	* dest reg is undefined if x==0, but their CPU architect says its
 	* value is written to set it to the same as before.
 	*/
-	register long bitpos = -1;
+	long bitpos = -1;
 	asm("bsrq %1,%0" : "+r" (bitpos) : "rm" (x));
 	return bitpos + 1;
 #endif

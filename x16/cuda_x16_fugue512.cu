@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <cuda_helper.h>
+#include <cuda_texture_helper.h>
 
 #define TPB 256
 
@@ -43,12 +44,13 @@
 // store allocated textures device addresses
 static unsigned int* d_textures[MAX_GPUS][1];
 
+// CUDA 12 compatible texture objects
+static cudaTextureObject_t d_texMixTab0[MAX_GPUS];
+
 #define mixtab0(x) mixtabs[(x)]
 #define mixtab1(x) mixtabs[(x)+256]
 #define mixtab2(x) mixtabs[(x)+512]
 #define mixtab3(x) mixtabs[(x)+768]
-
-static texture<unsigned int, 1, cudaReadModeElementType> mixTab0Tex;
 
 static const uint32_t mixtab0[] = {
 	0x63633297, 0x7c7c6feb, 0x77775ec7, 0x7b7b7af7, 0xf2f2e8e5, 0x6b6b0ab7, 0x6f6f16a7, 0xc5c56d39,
@@ -311,7 +313,7 @@ void x16_fugue512_gpu_hash_80(const uint32_t threads, const uint32_t startNonce,
 
 	// load shared mem (with 256 threads)
 	const uint32_t thr = threadIdx.x & 0xFF;
-	const uint32_t tmp = tex1Dfetch(mixTab0Tex, thr);
+	const uint32_t tmp = tex1Dfetch<unsigned int>(d_texMixTab0[blockIdx.x], (unsigned int)thr);
 	mixtabs[thr] = tmp;
 	mixtabs[thr+256] = ROR8(tmp);
 	mixtabs[thr+512] = ROL16(tmp);
@@ -319,7 +321,7 @@ void x16_fugue512_gpu_hash_80(const uint32_t threads, const uint32_t startNonce,
 #if TPB <= 256
 	if (blockDim.x < 256) {
 		const uint32_t thr = (threadIdx.x + 0x80) & 0xFF;
-		const uint32_t tmp = tex1Dfetch(mixTab0Tex, thr);
+		const uint32_t tmp = tex1Dfetch<unsigned int>(d_texMixTab0[blockIdx.x], (unsigned int)thr);
 		mixtabs[thr] = tmp;
 		mixtabs[thr + 256] = ROR8(tmp);
 		mixtabs[thr + 512] = ROL16(tmp);
@@ -430,23 +432,17 @@ void x16_fugue512_gpu_hash_80(const uint32_t threads, const uint32_t startNonce,
 	}
 }
 
-#define texDef(id, texname, texmem, texsource, texsize) { \
-	unsigned int *texmem; \
-	cudaMalloc(&texmem, texsize); \
-	d_textures[thr_id][id] = texmem; \
-	cudaMemcpy(texmem, texsource, texsize, cudaMemcpyHostToDevice); \
-	texname.normalized = 0; \
-	texname.filterMode = cudaFilterModePoint; \
-	texname.addressMode[0] = cudaAddressModeClamp; \
-	{ cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>(); \
-	  cudaBindTexture(NULL, &texname, texmem, &channelDesc, texsize ); \
-	} \
-}
-
 __host__
 void x16_fugue512_cpu_init(int thr_id, uint32_t threads)
 {
-	texDef(0, mixTab0Tex, mixTab0m, mixtab0, sizeof(uint32_t)*256);
+	unsigned int *mixTab0m;
+	cudaMalloc(&mixTab0m, sizeof(uint32_t)*256);
+	d_textures[thr_id][0] = mixTab0m;
+	cudaMemcpy(mixTab0m, mixtab0, sizeof(uint32_t)*256, cudaMemcpyHostToDevice);
+	{
+		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned int>();
+		CREATE_TEXTURE_OBJECT_1D(d_texMixTab0[thr_id], mixTab0m, channelDesc, sizeof(uint32_t)*256);
+	}
 }
 
 __host__

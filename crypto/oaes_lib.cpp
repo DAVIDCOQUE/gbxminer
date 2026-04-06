@@ -35,7 +35,7 @@ static const char _NR[] = {
 
 #include <stddef.h>
 #include <time.h>
-#include <sys/timeb.h>
+#include <sys/time.h>
 #if !((defined(__FreeBSD__) && __FreeBSD__ >= 10) || defined(__APPLE__))
 #include <malloc.h>
 #endif
@@ -456,17 +456,19 @@ OAES_RET oaes_sprintf(
 #ifdef OAES_HAVE_ISAAC
 static void oaes_get_seed( char buf[RANDSIZ + 1] )
 {
-	struct timeb timer;
+	struct timeval timer;
 	struct tm *gmTimer;
 	char * _test = NULL;
+	suseconds_t millitm;
 
-	ftime (&timer);
-	gmTimer = gmtime( &timer.time );
-	_test = (char *) calloc( sizeof( char ), timer.millitm );
-	sprintf( buf, "%04d%02d%02d%02d%02d%02d%03d%p%d",
+	gettimeofday(&timer, NULL);
+	gmTimer = gmtime( &timer.tv_sec );
+	millitm = timer.tv_usec / 1000; /* convert microseconds to milliseconds */
+	_test = (char *) calloc( sizeof( char ), millitm ? millitm : 1 );
+	sprintf( buf, "%04d%02d%02d%02d%02d%02d%03ld%p%d",
 		gmTimer->tm_year + 1900, gmTimer->tm_mon + 1, gmTimer->tm_mday,
-		gmTimer->tm_hour, gmTimer->tm_min, gmTimer->tm_sec, timer.millitm,
-		_test + timer.millitm, getpid() );
+		gmTimer->tm_hour, gmTimer->tm_min, gmTimer->tm_sec, (long)millitm,
+		_test + millitm, getpid() );
 
 	if( _test )
 		free( _test );
@@ -474,17 +476,19 @@ static void oaes_get_seed( char buf[RANDSIZ + 1] )
 #else
 static uint32_t oaes_get_seed(void)
 {
-	struct timeb timer;
+	struct timeval timer;
 	struct tm *gmTimer;
 	char * _test = NULL;
 	uint32_t _ret = 0;
+	suseconds_t millitm;
 
-	ftime (&timer);
-	gmTimer = gmtime( &timer.time );
-	_test = (char *) calloc( sizeof( char ), timer.millitm );
+	gettimeofday(&timer, NULL);
+	gmTimer = gmtime( &timer.tv_sec );
+	millitm = timer.tv_usec / 1000; /* convert microseconds to milliseconds */
+	_test = (char *) calloc( sizeof( char ), millitm ? millitm : 1 );
 	_ret = (uint32_t)(gmTimer->tm_year + 1900 + gmTimer->tm_mon + 1 + gmTimer->tm_mday +
-			gmTimer->tm_hour + gmTimer->tm_min + gmTimer->tm_sec + timer.millitm +
-			(uintptr_t) ( _test + timer.millitm ) + getpid());
+			gmTimer->tm_hour + gmTimer->tm_min + gmTimer->tm_sec + millitm +
+			(uintptr_t) ( _test + millitm ) + getpid());
 
 	if( _test )
 		free( _test );

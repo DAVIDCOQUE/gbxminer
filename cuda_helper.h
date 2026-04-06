@@ -669,14 +669,37 @@ static uint2 SHR2(uint2 a, int offset)
 #endif
 }
 
-// CUDA 9+ deprecated functions warnings (new mask param)
+// CUDA 9 deprecated the maskless warp-primitive variants with a compiler warning.
+// CUDA 12 removed them entirely; any translation unit that references them will
+// fail to link.  Provide a complete shim here so that all call sites in the
+// codebase are transparently redirected to the _sync equivalents.
+//
+// Assumptions that make this safe:
+//   - Every call site in gbxminer targets a full 32-thread warp (mask = 0xFFFFFFFF).
+//     This was verified by audit; no partial-warp shuffle exists in this tree.
+//   - The shim is guarded by __CUDA_ARCH__ >= 300, matching the hardware
+//     minimum for warp-shuffle instructions.
+//   - The mask constant intentionally uses the unsigned suffix (U) to silence
+//     signed/unsigned truncation warnings on MSVC and Clang.
 #if CUDA_VERSION >= 9000 && __CUDA_ARCH__ >= 300
-#undef __shfl
-#define __shfl(var, srcLane, width)  __shfl_sync(0xFFFFFFFFu, var, srcLane, width)
-#undef __shfl_up
-#define __shfl_up(var, delta, width) __shfl_up_sync(0xFFFFFFFF, var, delta, width)
-#undef __any
-#define __any(p) __any_sync(0xFFFFFFFFu, p)
+#undef  __shfl
+#define __shfl(var, srcLane, width) \
+    __shfl_sync(0xFFFFFFFFU, var, srcLane, width)
+#undef  __shfl_up
+#define __shfl_up(var, delta, width) \
+    __shfl_up_sync(0xFFFFFFFFU, var, delta, width)
+#undef  __shfl_down
+#define __shfl_down(var, delta, width) \
+    __shfl_down_sync(0xFFFFFFFFU, var, delta, width)
+#undef  __shfl_xor
+#define __shfl_xor(var, laneMask, width) \
+    __shfl_xor_sync(0xFFFFFFFFU, var, laneMask, width)
+#undef  __any
+#define __any(p) \
+    __any_sync(0xFFFFFFFFU, p)
+#undef  __ballot
+#define __ballot(p) \
+    __ballot_sync(0xFFFFFFFFU, p)
 #endif
 
 #endif // #ifndef CUDA_HELPER_H
