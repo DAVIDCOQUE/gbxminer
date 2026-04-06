@@ -2,7 +2,6 @@ name: Docker Image CI
 
 on:
   push:
-  pull_request:
 
 jobs:
 
@@ -10,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v8
+    - uses: actions/checkout@v6
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag gbxminer:latest --no-cache
     - name: Docker image list
