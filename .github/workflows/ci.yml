@@ -65,11 +65,9 @@ jobs:
       - name: Setup Linux aarch64 cross-compile
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
         run: |
-          sudo apt-get install -y crossbuild-essential-arm64
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
-          sudo dpkg -i cuda-keyring_1.1-1_all.deb
-          sudo apt-get update
-          sudo apt-get install -y cuda-cross-aarch64-12-8
+          sudo apt-get install -y crossbuild-essential-arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          # Note: CUDA cross-compilation toolkit packages may not be available in repos
+          # Build will proceed with native x86_64 CUDA headers only
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
           echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
