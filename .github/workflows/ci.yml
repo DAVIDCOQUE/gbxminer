@@ -74,6 +74,7 @@ jobs:
             libcurl4-openssl-dev
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
 
       - name: Setup Windows cross-compile
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
@@ -88,6 +89,7 @@ jobs:
       - name: Configure build (Linux x86_64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
         run: |
+          make clean || true
           ./autogen.sh
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
@@ -97,6 +99,7 @@ jobs:
       - name: Configure build (Linux aarch64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
         run: |
+          make clean || true
           ./autogen.sh
           ./configure --host=aarch64-linux-gnu \
             CXXFLAGS="-O3 -march=armv8-a" \
@@ -105,6 +108,7 @@ jobs:
       - name: Configure build (Windows win64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
         run: |
+          make clean || true
           ./autogen.sh
           ./configure --host=x86_64-w64-mingw32 \
             CXXFLAGS="-O3" \
@@ -115,10 +119,20 @@ jobs:
         run: make -j$(nproc)
 
       - name: Verify binary (Linux only)
-        if: "matrix.os == 'ubuntu-24.04' && matrix.arch != 'win64'"
+        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
         run: |
           file ./gbxminer
           ./gbxminer --version || true
+
+      - name: Verify binary (Linux aarch64)
+        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'"
+        run: |
+          file ./gbxminer
+
+      - name: Verify binary (Windows win64)
+        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'"
+        run: |
+          file ./gbxminer
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
