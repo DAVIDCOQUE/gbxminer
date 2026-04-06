@@ -1,6 +1,9 @@
 # allow to use Host cuda functions in C/C++
 DEF_INCLUDES = @CUDA_INCLUDES@
 
+# Enable parallel builds by default
+MAKEFLAGS = -j$(shell nproc)
+
 if WANT_JANSSON
 JANSSON_INCLUDES= -I$(top_srcdir)/compat/jansson
 else

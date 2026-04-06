@@ -1,4 +1,7 @@
 
+# Enable parallel builds by default
+MAKEFLAGS = -j$(shell nproc)
+
 noinst_LIBRARIES = libjansson.a
 
 libjansson_a_SOURCES = \

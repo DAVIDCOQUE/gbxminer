@@ -1,4 +1,7 @@
 
+# Enable parallel builds by default
+MAKEFLAGS = -j$(shell nproc)
+
 if WANT_JANSSON
 SUBDIRS	= jansson
 else
