@@ -427,17 +427,17 @@ int find_optimal_blockcount(int thr_id, KernelInterface* &kernel, bool &concurre
 				}
 				// bind linear memory to a 1D texture reference
 				if (kernel->get_texel_width() == 2)
-					kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * min(MAXWARPS[thr_id],MW_1D_2) * sizeof(uint32_t));
+					kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * min(MAXWARPS[thr_id],MW_1D_2) * sizeof(uint32_t), thr_id);
 				else
-					kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * min(MAXWARPS[thr_id],MW_1D_4) * sizeof(uint32_t));
+					kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * min(MAXWARPS[thr_id],MW_1D_4) * sizeof(uint32_t), thr_id);
 			}
 			else if (device_texturecache[thr_id] == 2)
 			{
 				// bind pitch linear memory to a 2D texture reference
 				if (kernel->get_texel_width() == 2)
-					kernel->bindtexture_2D(d_V, SCRATCH/2, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t));
+					kernel->bindtexture_2D(d_V, SCRATCH/2, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t), thr_id);
 				else
-					kernel->bindtexture_2D(d_V, SCRATCH/4, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t));
+					kernel->bindtexture_2D(d_V, SCRATCH/4, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t), thr_id);
 			}
 		}
 		else
@@ -723,17 +723,17 @@ skip:           ;
 				{
 					// bind linear memory to a 1D texture reference
 					if (kernel->get_texel_width() == 2)
-						kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * MAXWARPS[thr_id] * sizeof(uint32_t));
+						kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * MAXWARPS[thr_id] * sizeof(uint32_t), thr_id);
 					else
-						kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * MAXWARPS[thr_id] * sizeof(uint32_t));
+						kernel->bindtexture_1D(d_V, SCRATCH * WU_PER_WARP * MAXWARPS[thr_id] * sizeof(uint32_t), thr_id);
 				}
 				else if (device_texturecache[thr_id] == 2)
 				{
 					// bind pitch linear memory to a 2D texture reference
 					if (kernel->get_texel_width() == 2)
-						kernel->bindtexture_2D(d_V, SCRATCH/2, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t));
+						kernel->bindtexture_2D(d_V, SCRATCH/2, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t), thr_id);
 					else
-						kernel->bindtexture_2D(d_V, SCRATCH/4, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t));
+						kernel->bindtexture_2D(d_V, SCRATCH/4, WU_PER_WARP * MAXWARPS[thr_id], SCRATCH*sizeof(uint32_t), thr_id);
 				}
 
 				// update pointers to scratch buffer in constant memory after reallocation
