@@ -307,13 +307,14 @@ void x16_fugue512_setBlock_80(void *pdata)
 
 __global__
 __launch_bounds__(TPB)
-void x16_fugue512_gpu_hash_80(const uint32_t threads, const uint32_t startNonce, uint64_t *g_hash)
+void x16_fugue512_gpu_hash_80(const uint32_t threads, const uint32_t startNonce, uint64_t *g_hash,
+	cudaTextureObject_t texTab0)
 {
 	__shared__ uint32_t mixtabs[1024];
 
 	// load shared mem (with 256 threads)
 	const uint32_t thr = threadIdx.x & 0xFF;
-	const uint32_t tmp = tex1Dfetch<unsigned int>(d_texMixTab0[blockIdx.x], (unsigned int)thr);
+	const uint32_t tmp = tex1Dfetch<unsigned int>(texTab0, (unsigned int)thr);
 	mixtabs[thr] = tmp;
 	mixtabs[thr+256] = ROR8(tmp);
 	mixtabs[thr+512] = ROL16(tmp);
@@ -321,7 +322,7 @@ void x16_fugue512_gpu_hash_80(const uint32_t threads, const uint32_t startNonce,
 #if TPB <= 256
 	if (blockDim.x < 256) {
 		const uint32_t thr = (threadIdx.x + 0x80) & 0xFF;
-		const uint32_t tmp = tex1Dfetch<unsigned int>(d_texMixTab0[blockIdx.x], (unsigned int)thr);
+		const uint32_t tmp = tex1Dfetch<unsigned int>(texTab0, (unsigned int)thr);
 		mixtabs[thr] = tmp;
 		mixtabs[thr + 256] = ROR8(tmp);
 		mixtabs[thr + 512] = ROL16(tmp);
@@ -459,5 +460,6 @@ void x16_fugue512_cuda_hash_80(int thr_id, const uint32_t threads, const uint32_
 	dim3 grid((threads + threadsperblock-1)/threadsperblock);
 	dim3 block(threadsperblock);
 
-	x16_fugue512_gpu_hash_80 <<<grid, block>>> (threads, startNonce, (uint64_t*)d_hash);
+	x16_fugue512_gpu_hash_80 <<<grid, block>>> (threads, startNonce, (uint64_t*)d_hash,
+		d_texMixTab0[thr_id]);
 }
