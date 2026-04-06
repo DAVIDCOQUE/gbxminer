@@ -89,7 +89,7 @@ jobs:
       - name: Configure build (Linux x86_64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
         run: |
-          make clean || true
+          rm -f Makefile || true
           ./autogen.sh
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
@@ -111,10 +111,14 @@ jobs:
       - name: Configure build (Windows win64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
         run: |
-          make clean || true
+          rm -f Makefile || true
           ./autogen.sh
           ./configure --host=x86_64-w64-mingw32 \
-            CXXFLAGS="-O3"
+            CXXFLAGS="-O3" \
+            ac_cv_lib_jansson_json_loads=yes \
+            ac_cv_lib_z_gzopen=yes \
+            ac_cv_lib_ssl_SSL_free=yes \
+            ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
 
       - name: Build
         run: make -j$(nproc)
