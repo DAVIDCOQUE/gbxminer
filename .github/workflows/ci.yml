@@ -79,14 +79,14 @@ jobs:
           sudo sed -i '/^Types: deb$/a Architectures: amd64' \
               /etc/apt/sources.list.d/ubuntu.sources
 
-          sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null << 'EOF'
-Types: deb
-URIs: http://ports.ubuntu.com/ubuntu-ports
-Suites: noble noble-updates noble-security noble-backports
-Components: main restricted universe multiverse
-Architectures: arm64
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-EOF
+          printf '%s\n' \
+            'Types: deb' \
+            'URIs: http://ports.ubuntu.com/ubuntu-ports' \
+            'Suites: noble noble-updates noble-security noble-backports' \
+            'Components: main restricted universe multiverse' \
+            'Architectures: arm64' \
+            'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+            | sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null
 
           sudo apt-get update
           sudo apt-get install -y \
@@ -166,9 +166,14 @@ EOF
             CXXFLAGS="-O3" \
             PKG_CONFIG="pkg-config --static"
 
-      - name: Build
-        shell: ${{ matrix.os == 'windows-2025' && 'msys2 {0}' || 'bash' }}
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-24.04'
         run: make -j$(nproc 2>/dev/null || echo 4)
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: msys2 {0}
+        run: make -j4
 
       - name: Verify binary (Linux only)
         if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
