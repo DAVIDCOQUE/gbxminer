@@ -30,8 +30,8 @@ jobs:
           - os: ubuntu-24.04
             arch: aarch64
             artifact_name: gbxminer-linux-aarch64
-          - os: windows-latest
-            arch: x86_64
+          - os: ubuntu-24.04
+            arch: win64
             artifact_name: gbxminer-windows-x86_64
 
     steps:
@@ -51,8 +51,8 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup Linux x86_64 CUDA
-        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
+      - name: Setup CUDA (x86_64 and win64)
+        if: "matrix.os == 'ubuntu-24.04' && (matrix.arch == 'x86_64' || matrix.arch == 'win64')"
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
@@ -74,7 +74,16 @@ jobs:
             libcurl4-openssl-dev
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
+
+      - name: Setup Windows cross-compile
+        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
+        run: |
+          sudo apt-get install -y \
+            mingw-w64 \
+            gcc-mingw-w64-x86-64 \
+            g++-mingw-w64-x86-64
+          echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
+          echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
 
       - name: Configure build (Linux x86_64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
@@ -93,32 +102,20 @@ jobs:
             CXXFLAGS="-O3 -march=armv8-a" \
             --with-cuda=$CUDA_HOME
 
-      - name: Setup Windows build
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install mingw -y
-          refreshenv
-
-      - name: Setup Windows CUDA
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install cuda --version=12.8.0 -y
-          refreshenv
-          echo "CUDA_PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8" >> $GITHUB_ENV
-
-      - name: Configure build
-        if: matrix.os == 'windows-latest'
-        shell: bash
+      - name: Configure build (Windows win64)
+        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
         run: |
           ./autogen.sh
-          export CUDA_CFLAGS="-O3 -D_FORCE_INLINES"
-          export CXXFLAGS="-O3"
-          ./configure --with-cuda=$CUDA_PATH
+          ./configure --host=x86_64-w64-mingw32 \
+            CXXFLAGS="-O3" \
+            --with-cuda=$CUDA_HOME \
+            --disable-opencl
 
       - name: Build
         run: make -j$(nproc)
 
-      - name: Verify binary
+      - name: Verify binary (Linux only)
+        if: "matrix.os == 'ubuntu-24.04' && matrix.arch != 'win64'"
         run: |
           file ./gbxminer
           ./gbxminer --version || true
