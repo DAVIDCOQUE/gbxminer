@@ -58,3 +58,10 @@ jobs:
         run: |
           file ./gbxminer
           ./gbxminer --version || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gbxminer
+          path: ./gbxminer
+          retention-days: 3
