@@ -19,18 +19,27 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+            artifact_name: gbxminer-linux-x86_64
+          - os: ubuntu-24.04
+            arch: aarch64
+            artifact_name: gbxminer-linux-aarch64
+          - os: windows-latest
+            arch: x86_64
+            artifact_name: gbxminer-windows-x86_64
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install CUDA toolkit
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nvidia-cuda-toolkit
-
-      - name: Install system dependencies
+      - name: Setup Linux build
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -42,22 +51,62 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup CUDA environment
+      - name: Setup Linux x86_64 CUDA
+        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
         run: |
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y cuda-toolkit-12-8
           echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
           echo "PATH=/usr/local/cuda-12.8/bin:$PATH" >> $GITHUB_ENV
           echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
-      - name: Configure build
+      - name: Setup Linux aarch64 cross-compile
+        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get install -y crossbuild-essential-arm64
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y cuda-cross-aarch64-12-8
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
+
+      - name: Configure build (Linux x86_64)
+        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
         run: |
           ./autogen.sh
-
-      - name: Run configure
-        run: |
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
             --with-cuda=$CUDA_HOME \
             --with-nvml=libnvidia-ml.so
+
+      - name: Configure build (Linux aarch64)
+        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
+        run: |
+          ./autogen.sh
+          ./configure --host=aarch64-linux-gnu CXXFLAGS="-O3 -march=armv8-a" --with-cuda=$CUDA_HOME
+
+      - name: Setup Windows build
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install mingw -y
+          refreshenv
+
+      - name: Setup Windows CUDA
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install cuda --version=12.8.0 -y
+          refreshenv
+          echo "CUDA_PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8" >> $GITHUB_ENV
+
+      - name: Configure build
+        if: matrix.os == 'windows-latest'
+        run: |
+          bash -c "./autogen.sh"
+          bash -c "CUDA_CFLAGS='-O3 -D_FORCE_INLINES' ./configure CXXFLAGS='-O3' --with-cuda=$env:CUDA_PATH"
 
       - name: Build
         run: make -j$(nproc)
@@ -68,8 +117,8 @@ jobs:
           ./gbxminer --version || true
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: gbxminer
+          name: ${{ matrix.artifact_name }}
           path: ./gbxminer
           retention-days: 3
