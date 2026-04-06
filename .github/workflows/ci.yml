@@ -68,10 +68,10 @@ jobs:
           sudo apt-get install -y \
             crossbuild-essential-arm64 \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libssl-dev:arm64 \
-            libjansson-dev:arm64 \
-            zlib1g-dev:arm64 \
-            libcurl4-openssl-dev:arm64
+            libssl-dev \
+            libjansson-dev \
+            zlib1g-dev \
+            libcurl4-openssl-dev
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
           echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
@@ -91,11 +91,7 @@ jobs:
           ./autogen.sh
           ./configure --host=aarch64-linux-gnu \
             CXXFLAGS="-O3 -march=armv8-a" \
-            LDFLAGS="-L/usr/lib/aarch64-linux-gnu" \
-            --with-cuda=$CUDA_HOME \
-            --with-ssl=/usr \
-            --with-curl=/usr \
-            --with-jansson=/usr
+            --with-cuda=$CUDA_HOME
 
       - name: Setup Windows build
         if: matrix.os == 'windows-latest'
