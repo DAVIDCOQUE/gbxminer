@@ -211,8 +211,6 @@ quark/cuda_quark_compactionTest.o: quark/cuda_quark_compactionTest.cu
 JHA/cuda_jha_compactionTest.o: JHA/cuda_jha_compactionTest.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
 
-<
-
 skein.o: skein.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
 
