@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CUDA_VERSION: "12.8"
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v8
+
+      - name: Install CUDA toolkit
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: cuda-toolkit-12-8
+          version: 1.0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            libtool \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            pkg-config
+
+      - name: Setup CUDA environment
+        run: |
+          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-12.8/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Configure build
+        run: |
+          ./autogen.sh
+
+      - name: Run configure
+        run: |
+          CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
+            ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
+            --with-cuda=$CUDA_HOME \
+            --with-nvml=libnvidia-ml.so
+
+      - name: Build
+        run: make -j$(nproc)
+
+      - name: Verify binary
+        run: |
+          file ./gbxminer
+          ./gbxminer --version || true
