@@ -111,9 +111,7 @@ jobs:
           make clean || true
           ./autogen.sh
           ./configure --host=x86_64-w64-mingw32 \
-            CXXFLAGS="-O3" \
-            --with-cuda=$CUDA_HOME \
-            --disable-opencl
+            CXXFLAGS="-O3"
 
       - name: Build
         run: make -j$(nproc)
