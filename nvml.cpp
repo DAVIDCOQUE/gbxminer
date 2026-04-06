@@ -2091,7 +2091,7 @@ static int translate_vendor_id(uint16_t vid, char *vendorname)
 		}
 	}
 	if (opt_debug && vid != 0x10DE)
-		applog(LOG_DEBUG, "nvml: Unknown vendor %04x\n", vid);
+		applog(LOG_DEBUG, "nvml: Unknown vendor %04x", vid);
 	return 0;
 }
 

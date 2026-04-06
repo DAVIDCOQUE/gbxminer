@@ -482,7 +482,7 @@ static json_t *json_rpc_call(CURL *curl, const char *url,
 	curl_easy_setopt(curl, CURLOPT_POST, 1);
 
 	if (opt_protocol)
-		applog(LOG_DEBUG, "JSON protocol request:\n%s", rpc_req);
+		applog(LOG_DEBUG, "JSON protocol request: %s", rpc_req);
 
 	upload_data.buf = rpc_req;
 	upload_data.len = strlen(rpc_req);
@@ -553,7 +553,7 @@ static json_t *json_rpc_call(CURL *curl, const char *url,
 
 	if (opt_protocol) {
 		char *s = json_dumps(val, JSON_INDENT(3));
-		applog(LOG_DEBUG, "JSON protocol response:\n%s\n", s);
+		applog(LOG_DEBUG, "JSON protocol response: %s", s);
 		free(s);
 	}
 
@@ -815,7 +815,7 @@ bool fulltest(const uint32_t *hash, const uint32_t *target)
 		hash_str = bin2hex((uchar *)hash_be, 32);
 		target_str = bin2hex((uchar *)target_be, 32);
 
-		applog(LOG_DEBUG, "DEBUG: %s\nHash:   %s\nTarget: %s",
+		applog(LOG_DEBUG, "DEBUG: %s Hash: %s Target: %s",
 			rc ? "hash <= target"
 			   : CL_YLW "hash > target (false positive)" CL_N,
 			hash_str,
