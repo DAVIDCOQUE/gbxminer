@@ -1,7 +1,6 @@
 AC_INIT([gbxminer], [1.0.0], [], [gbxminer], [http://github.com/d0wn3d/gbxminer])
 
 AC_PREREQ([2.59c])
-AC_CANONICAL_SYSTEM
 AC_CONFIG_SRCDIR([gbxminer.cpp])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS([gbxminer-config.h])
@@ -10,7 +9,7 @@ dnl Make sure anyone changing configure.ac/Makefile.am has a clue
 AM_MAINTAINER_MODE
 
 dnl Checks for programs
-AC_PROG_CC_C99
+AC_PROG_CC
 AC_PROG_GCC_TRADITIONAL
 AM_PROG_CC_C_O
 AM_PROG_AS
@@ -19,7 +18,6 @@ AC_PROG_CXX
 AC_OPENMP
 
 dnl Checks for header files
-AC_HEADER_STDC
 AC_CHECK_HEADERS([sys/endian.h sys/param.h syslog.h])
 # sys/sysctl.h requires sys/types.h on FreeBSD
 # sys/sysctl.h requires sys/param.h on OpenBSD
