@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # autogen.sh — regenerate the autotools build system from source.
 #
 # Run this script once after cloning, and again after any change to
