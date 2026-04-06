@@ -108,11 +108,12 @@ jobs:
 
       - name: Configure build
         if: matrix.os == 'windows-latest'
+        shell: bash
         run: |
           ./autogen.sh
-          set "CUDA_CFLAGS=-O3 -D_FORCE_INLINES"
-          set "CXXFLAGS=-O3"
-          .\configure --with-cuda=%CUDA_PATH%
+          export CUDA_CFLAGS="-O3 -D_FORCE_INLINES"
+          export CXXFLAGS="-O3"
+          ./configure --with-cuda=$CUDA_PATH
 
       - name: Build
         run: make -j$(nproc)
