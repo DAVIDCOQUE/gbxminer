@@ -12,19 +12,23 @@ void myriadgroestl_cpu_free(int thr_id);
 void myriadgroestl_cpu_setBlock(int thr_id, void *data, uint32_t *target);
 void myriadgroestl_cpu_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *resNonces);
 
+#include <openssl/evp.h>
+
 void myriadhash(void *state, const void *input)
 {
 	uint32_t _ALIGN(64) hash[16];
 	sph_groestl512_context ctx_groestl;
-	SHA256_CTX sha256;
+	EVP_MD_CTX *sha256_ctx = EVP_MD_CTX_new();
+	const EVP_MD *sha256_md = EVP_sha256();
 
 	sph_groestl512_init(&ctx_groestl);
 	sph_groestl512(&ctx_groestl, input, 80);
 	sph_groestl512_close(&ctx_groestl, hash);
 
-	SHA256_Init(&sha256);
-	SHA256_Update(&sha256,(unsigned char *)hash, 64);
-	SHA256_Final((unsigned char *)hash, &sha256);
+	EVP_DigestInit_ex(sha256_ctx, sha256_md, NULL);
+	EVP_DigestUpdate(sha256_ctx, hash, 64);
+	EVP_DigestFinal_ex(sha256_ctx, (unsigned char *)hash, NULL);
+	EVP_MD_CTX_free(sha256_ctx);
 
 	memcpy(state, hash, 32);
 }
