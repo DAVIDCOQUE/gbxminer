@@ -51,8 +51,10 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup CUDA (x86_64 and win64)
-        if: "matrix.os == 'ubuntu-24.04' && (matrix.arch == 'x86_64' || matrix.arch == 'win64')"
+      - name: Setup CUDA (x86_64 only)
+        # nvcc does not support Linux->Windows cross-compilation; win64 gets
+        # no CUDA setup.  The win64 target builds the CPU/host-side code only.
+        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
@@ -65,13 +67,20 @@ jobs:
       - name: Setup Linux aarch64 cross-compile
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
         run: |
+          # Enable arm64 multiarch so apt can install arm64 dev packages
+          # alongside the host x86_64 packages without conflict.
+          # This MUST happen before apt-get update so the arm64 package
+          # index is fetched in the same pass.
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-arm64 \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libssl-dev \
-            libjansson-dev \
-            zlib1g-dev \
-            libcurl4-openssl-dev
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            libssl-dev:arm64 \
+            libjansson-dev:arm64 \
+            zlib1g-dev:arm64 \
+            libcurl4-openssl-dev:arm64
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
           echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
@@ -85,6 +94,16 @@ jobs:
             g++-mingw-w64-x86-64
           echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
           echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
+
+          # Download the official pre-built mingw64 curl from curl.se.
+          # This provides lib/libcurl.dll.a (mingw import library) and
+          # include/curl/curl.h, which the cross-linker requires.
+          # Pin the version so CI is reproducible; bump deliberately.
+          CURL_WIN_VER="8.5.0"
+          wget -q "https://curl.se/windows/dl-${CURL_WIN_VER}/curl-${CURL_WIN_VER}-win64-mingw.zip"
+          unzip -q "curl-${CURL_WIN_VER}-win64-mingw.zip"
+          CURL_WIN_DIR="$(pwd)/curl-${CURL_WIN_VER}-win64-mingw"
+          echo "CURL_WIN_DIR=${CURL_WIN_DIR}" >> $GITHUB_ENV
 
       - name: Configure build (Linux x86_64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
@@ -101,8 +120,19 @@ jobs:
         run: |
           rm -f Makefile || true
           ./autogen.sh
+          # The host curl-config (/usr/bin/curl-config) reports x86_64 link
+          # flags.  When LIBCURL_CHECK_CONFIG feeds those into AC_LINK_IFELSE
+          # using the aarch64 cross-compiler the link test fails and configure
+          # aborts.  Fix: pre-set LIBCURL_CPPFLAGS and LIBCURL to point at the
+          # arm64 multiarch libraries, and assert libcurl_cv_lib_curl_usable=yes
+          # so autoconf skips the cross-execution link test.  The arm64
+          # libcurl.so is confirmed present because we installed
+          # libcurl4-openssl-dev:arm64 above.
+          LIBCURL_CPPFLAGS="-I/usr/include" \
+          LIBCURL="-L/usr/lib/aarch64-linux-gnu -lcurl" \
           ./configure --host=aarch64-linux-gnu \
             CXXFLAGS="-O3 -march=armv8-a" \
+            libcurl_cv_lib_curl_usable=yes \
             ac_cv_lib_jansson_json_loads=yes \
             ac_cv_lib_z_gzopen=yes \
             ac_cv_lib_ssl_SSL_free=yes \
@@ -113,8 +143,16 @@ jobs:
         run: |
           rm -f Makefile || true
           ./autogen.sh
+          # Same root cause as aarch64: the host curl-config gives x86_64
+          # flags which the mingw cross-linker rejects.  Pre-set LIBCURL* to
+          # the mingw curl downloaded in the setup step above.
+          # -lws2_32 -lwldap32 -lcrypt32 are Windows socket/LDAP/crypto libs
+          # that libcurl.dll depends on; mingw must see them at link time.
+          LIBCURL_CPPFLAGS="-I${CURL_WIN_DIR}/include" \
+          LIBCURL="-L${CURL_WIN_DIR}/lib -lcurl -lws2_32 -lwldap32 -lcrypt32" \
           ./configure --host=x86_64-w64-mingw32 \
             CXXFLAGS="-O3" \
+            libcurl_cv_lib_curl_usable=yes \
             ac_cv_lib_jansson_json_loads=yes \
             ac_cv_lib_z_gzopen=yes \
             ac_cv_lib_ssl_SSL_free=yes \
