@@ -48,6 +48,14 @@ static cudaTextureObject_t texObj2D_4_V[MAX_GPUS] = {0};
 static uint4* d_V_1D = NULL;
 static uint4* d_V_2D = NULL;
 
+// Active texture object handles in __constant__ memory.
+// Device code reads these directly; no kernel-signature changes required.
+// bindtexture_1D/2D write the per-GPU handle here via cudaMemcpyToSymbol
+// (which targets the device that is current at call time — always correct
+// because salsa_kernel.cu sets the device before calling bind).
+__constant__ cudaTextureObject_t c_texObj1D_4;
+__constant__ cudaTextureObject_t c_texObj2D_4;
+
 template <int ALGO> __device__  __forceinline__ void block_mixer(uint4 &b, uint4 &bx, const int x1, const int x2, const int x3);
 
 static __device__ uint4& operator^=(uint4& left, const uint4& right) {
@@ -132,11 +140,11 @@ void read_keys_direct(uint4 &b, uint4 &bx, uint32_t start)
 				b  = *((uint4 *)(&scratch[c ? t2_start : start]));
 				bx = *((uint4 *)(&scratch[c ? start : t2_start]));
 		} else if (TEX_DIM == 1) {
-				b  = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], c ? t2_start : start);
-				bx = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], c ? start : t2_start);
+				b  = tex1Dfetch<uint4>(c_texObj1D_4, c ? t2_start : start);
+				bx = tex1Dfetch<uint4>(c_texObj1D_4, c ? start : t2_start);
 		} else if (TEX_DIM == 2) {
-				b  = tex2D<uint4>(texObj2D_4_V, 0.5f + ((c ? t2_start : start)%TEXWIDTH), 0.5f + ((c ? t2_start : start)/TEXWIDTH));
-				bx = tex2D<uint4>(texObj2D_4_V, 0.5f + ((c ? start : t2_start)%TEXWIDTH), 0.5f + ((c ? start : t2_start)/TEXWIDTH));
+				b  = tex2D<uint4>(c_texObj2D_4, 0.5f + ((c ? t2_start : start)%TEXWIDTH), 0.5f + ((c ? t2_start : start)/TEXWIDTH));
+				bx = tex2D<uint4>(c_texObj2D_4, 0.5f + ((c ? start : t2_start)%TEXWIDTH), 0.5f + ((c ? start : t2_start)/TEXWIDTH));
 		}
 		uint4 temp = b; b = (c ? bx : b); bx = (c ? temp : bx);
 		uint32_t *st = &tmp[threadIdx.x/32][(threadIdx.x + 28)%32];
@@ -146,11 +154,11 @@ void read_keys_direct(uint4 &b, uint4 &bx, uint32_t start)
 		*s = bx.w; bx.w = *st;
 	} else {
 				 if (TEX_DIM == 0) b = *((uint4 *)(&scratch[start]));
-		else if (TEX_DIM == 1) b = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], start/4);
-		else if (TEX_DIM == 2) b = tex2D<uint4>(texObj2D_4_V, 0.5f + ((start/4)%TEXWIDTH), 0.5f + ((start/4)/TEXWIDTH));
+		else if (TEX_DIM == 1) b = tex1Dfetch<uint4>(c_texObj1D_4, start/4);
+		else if (TEX_DIM == 2) b = tex2D<uint4>(c_texObj2D_4, 0.5f + ((start/4)%TEXWIDTH), 0.5f + ((start/4)/TEXWIDTH));
 				 if (TEX_DIM == 0) bx = *((uint4 *)(&scratch[start+16]));
-		else if (TEX_DIM == 1) bx = tex1Dfetch<uint4>(texObj1D_4_V[blockIdx.x], (start+16)/4);
-		else if (TEX_DIM == 2) bx = tex2D<uint4>(texObj2D_4_V, 0.5f + (((start+16)/4)%TEXWIDTH), 0.5f + (((start+16)/4)/TEXWIDTH));
+		else if (TEX_DIM == 1) bx = tex1Dfetch<uint4>(c_texObj1D_4, (start+16)/4);
+		else if (TEX_DIM == 2) bx = tex2D<uint4>(c_texObj2D_4, 0.5f + (((start+16)/4)%TEXWIDTH), 0.5f + (((start+16)/4)/TEXWIDTH));
 	}
 }
 
@@ -667,6 +675,7 @@ bool TestKernel::bindtexture_1D(uint32_t *d_V, size_t size, int thr_id)
 {
 	cudaChannelFormatDesc channelDesc4 = cudaCreateChannelDesc<uint4>();
 	CREATE_TEXTURE_OBJECT_1D(texObj1D_4_V[thr_id], d_V, channelDesc4, size);
+	cudaMemcpyToSymbol(c_texObj1D_4, &texObj1D_4_V[thr_id], sizeof(cudaTextureObject_t));
 	d_V_1D = (uint4*)d_V;
 	return true;
 }
@@ -678,6 +687,7 @@ bool TestKernel::bindtexture_2D(uint32_t *d_V, int width, int height, size_t pit
 	while (width > TEXWIDTH) { width /= 2; height *= 2; pitch /= 2; }
 	while (width < TEXWIDTH) { width *= 2; height = (height+1)/2; pitch *= 2; }
 	CREATE_TEXTURE_OBJECT_2D(texObj2D_4_V[thr_id], d_V, channelDesc4, (size_t)width, (size_t)height, pitch);
+	cudaMemcpyToSymbol(c_texObj2D_4, &texObj2D_4_V[thr_id], sizeof(cudaTextureObject_t));
 	d_V_2D = (uint4*)d_V;
 	return true;
 }
