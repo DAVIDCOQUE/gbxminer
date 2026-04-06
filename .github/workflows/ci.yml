@@ -99,11 +99,14 @@ jobs:
       - name: Configure build (Linux aarch64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
         run: |
-          make clean || true
+          rm -f Makefile || true
           ./autogen.sh
           ./configure --host=aarch64-linux-gnu \
             CXXFLAGS="-O3 -march=armv8-a" \
-            --with-cuda=$CUDA_HOME
+            ac_cv_lib_jansson_json_loads=yes \
+            ac_cv_lib_z_gzopen=yes \
+            ac_cv_lib_ssl_SSL_free=yes \
+            ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
 
       - name: Configure build (Windows win64)
         if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'win64'
