@@ -346,36 +346,3 @@ pytest unit/test_algos.py -v
 pytest -k "swab" -v
 ```
 
----
-
-## CI/CD Integration
-
-The test suite is designed to integrate with CI/CD pipelines:
-
-1. **Pre-commit hooks**: Run lint tests before commits
-2. **Pull request checks**: Run unit and functional tests on PR
-3. **Nightly builds**: Full test suite with coverage reports
-
-### GitHub Actions Example:
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
-      - name: Install dependencies
-        run: |
-          cd test
-          pip install -r requirements.txt
-      - name: Run tests
-        run: |
-          cd test
-          pytest -v --tb=short
-```
-
