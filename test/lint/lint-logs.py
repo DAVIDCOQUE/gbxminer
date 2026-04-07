@@ -9,15 +9,20 @@
 import re
 import sys
 
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 
 
 def main():
     # Search for applog() and gpulog() calls in C/C++ source files
-    logs_list = check_output(
-        ["git", "grep", "--extended-regexp", r"\b(applog|gpulog)\s*\(", "--", "*.cpp", "*.c", "*.h"],
-        text=True, encoding="utf8"
-    ).splitlines()
+    try:
+        logs_raw = check_output(
+            ["git", "grep", "--extended-regexp", r"\b(applog|gpulog)\s*\(", "--", "*.cpp", "*.c", "*.h"],
+            text=True, encoding="utf8"
+        )
+        logs_list = logs_raw.splitlines()
+    except CalledProcessError:
+        # No matches found - this is fine, nothing to lint
+        logs_list = []
 
     # Check for \n in the format string (between the quotes after the priority argument)
     # This pattern looks for \\n inside quotes in the log call
