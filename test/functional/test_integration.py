@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 """
 Integration tests for GBXminer.
 

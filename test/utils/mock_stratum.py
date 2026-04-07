@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 """
 Mock stratum server for testing GBXminer's stratum protocol implementation.
 

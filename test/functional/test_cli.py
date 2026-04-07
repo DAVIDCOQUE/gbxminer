@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 """
 Functional tests for GBXminer CLI argument parsing.
 

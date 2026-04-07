@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 """
 Unit tests for configuration parsing and validation in GBXminer.
 

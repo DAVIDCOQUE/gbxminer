@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 #!/usr/bin/env python3
 #
 # Check that log messages do NOT contain '\n' in the format string.

@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 """
 Mock API server for testing GBXminer's built-in API.
 

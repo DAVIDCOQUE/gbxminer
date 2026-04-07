@@ -1,3 +1,4 @@
+# Copyright (c) 2026-2026 The GBXMiner developers
 """
 Shared pytest fixtures for GBXminer test suite.
 

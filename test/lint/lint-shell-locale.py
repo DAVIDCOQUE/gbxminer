@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 #!/usr/bin/env python3
 #
 # Copyright (c) 2018-2022 The Bitcoin Core developers

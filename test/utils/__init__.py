@@ -1,3 +1,4 @@
+# Copyright (c) 2009-2014 The Bitcoin Core developers
 # GBXminer Test Utilities
 # This package contains utility modules for testing GBXminer
 
