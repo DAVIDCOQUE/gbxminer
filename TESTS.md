@@ -775,6 +775,33 @@ class TestCLIArguments:
 
 ---
 
+### 4. Functional Tests (`test/functional/`)
+
+**Purpose**: End-to-end tests that verify component interactions using mock servers.
+
+#### API Functional Tests (`test/functional/test_api.py`)
+
+Tests the miner's built-in API using `MockAPIServer`:
+
+- Server start/stop and lifecycle management
+- API commands: `version`, `summary`, `devs`, `threads`, `pools`
+- Response format validation
+- Multi-GPU scenarios
+- Error handling and connection failures
+- Custom response handlers
+
+#### Stratum Protocol Tests (`test/functional/test_stratum.py`)
+
+Tests the stratum mining protocol using `MockStratumServer`:
+
+- Server lifecycle and client connections
+- `mining.subscribe`, `mining.authorize`, `mining.submit` methods
+- Difficulty management and notifications
+- Multi-client scenarios
+- Callback functionality
+- Custom method handlers
+- Error handling (invalid params, parse errors, unknown methods)
+
 ### 5. Hashing Utility Tests (`test/unit/test_hashing.py`)
 
 **Purpose**: Test hash calculation and utility functions.
