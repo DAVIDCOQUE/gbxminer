@@ -1,6 +1,6 @@
 AC_INIT([gbxminer], [1.0.0], [], [gbxminer], [http://github.com/d0wn3d/gbxminer])
 
-AC_PREREQ([2.59c])
+AC_PREREQ([2.60])
 AC_CONFIG_SRCDIR([gbxminer.cpp])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS([gbxminer-config.h])
@@ -10,7 +10,6 @@ AM_MAINTAINER_MODE
 
 dnl Checks for programs
 AC_PROG_CC
-AC_PROG_GCC_TRADITIONAL
 AM_PROG_CC_C_O
 AM_PROG_AS
 AC_PROG_RANLIB
