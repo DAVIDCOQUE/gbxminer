@@ -270,13 +270,13 @@
     <ClInclude Include="compat\pthreads\pthread.h">
       <Filter>Header Files\compat</Filter>
     </ClInclude>
-    <ClCompile Include="lyra2\Lyra2.c">
+    <ClCompile Include="lyra2\lyra2.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
-    <ClCompile Include="lyra2\Sponge.c">
+    <ClCompile Include="lyra2\sponge.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
-    <ClCompile Include="lyra2\Lyra2Z.c">
+    <ClCompile Include="lyra2\lyra2z.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
     <ClCompile Include="scrypt.cpp">
@@ -509,13 +509,13 @@
     <ClInclude Include="compat\jansson\jansson_config.h">
       <Filter>Header Files\compat</Filter>
     </ClInclude>
-    <ClInclude Include="lyra2\Lyra2.h">
+    <ClInclude Include="lyra2\lyra2.h">
       <Filter>Header Files\lyra2</Filter>
     </ClInclude>
-    <ClInclude Include="lyra2\Lyra2Z.h">
+    <ClInclude Include="lyra2\lyra2z.h">
       <Filter>Header Files\lyra2</Filter>
     </ClInclude>
-    <ClInclude Include="lyra2\Sponge.h">
+    <ClInclude Include="lyra2\sponge.h">
       <Filter>Header Files\lyra2</Filter>
     </ClInclude>
     <ClInclude Include="quark\groestl_transf_quad.h">

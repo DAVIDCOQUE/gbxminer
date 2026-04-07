@@ -1,6 +1,6 @@
 extern "C" {
 #include <sph/sph_blake.h>
-#include "Lyra2Z.h"
+#include "lyra2z.h"
 }
 
 #include <miner.h>

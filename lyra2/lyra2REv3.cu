@@ -2,7 +2,7 @@ extern "C" {
 #include "sph/sph_blake.h"
 #include "sph/sph_bmw.h"
 #include "sph/sph_cubehash.h"
-#include "lyra2/Lyra2.h"
+#include "lyra2/lyra2.h"
 }
 
 #include <miner.h>

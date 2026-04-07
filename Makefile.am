@@ -36,11 +36,11 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  fuguecoin.cpp Algo256/cuda_fugue256.cu sph/fugue.c uint256.h \
 			  groestlcoin.cpp cuda_groestlcoin.cu cuda_groestlcoin.h \
 			  myriadgroestl.cpp cuda_myriadgroestl.cu \
-			  lyra2/Lyra2.c lyra2/Sponge.c \
+			  lyra2/lyra2.c lyra2/sponge.c \
 			  lyra2/lyra2RE.cu lyra2/cuda_lyra2.cu \
 		          lyra2/lyra2REv2.cu lyra2/cuda_lyra2v2.cu \
 			  lyra2/lyra2REv3.cu lyra2/cuda_lyra2v3.cu \
-			  lyra2/Lyra2Z.c lyra2/lyra2Z.cu lyra2/cuda_lyra2Z.cu \
+			  lyra2/lyra2z.c lyra2/lyra2Z.cu lyra2/cuda_lyra2Z.cu \
 			  lyra2/allium.cu \
 			  Algo256/cuda_bmw256.cu Algo256/cuda_cubehash256.cu \
 			  Algo256/cuda_blake256.cu Algo256/cuda_groestl256.cu \

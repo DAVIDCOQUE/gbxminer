@@ -259,9 +259,9 @@
     <ClCompile Include="crc32.c" />
     <ClCompile Include="hefty1.c" />
     <ClCompile Include="myriadgroestl.cpp" />
-    <ClCompile Include="lyra2\Lyra2.c" />
-    <ClCompile Include="lyra2\Sponge.c" />
-    <ClCompile Include="lyra2\Lyra2Z.c" />
+    <ClCompile Include="lyra2\lyra2.c" />
+    <ClCompile Include="lyra2\sponge.c" />
+    <ClCompile Include="lyra2\lyra2z.c" />
     <ClInclude Include="equi\eqcuda.hpp" />
     <ClInclude Include="equi\equihash.h" />
     <ClInclude Include="neoscrypt\neoscrypt.h" />
@@ -395,9 +395,9 @@
     <ClInclude Include="sph\sph_types.h" />
     <ClInclude Include="sph\sph_whirlpool.h" />
     <ClInclude Include="uint256.h" />
-    <ClInclude Include="lyra2\Lyra2.h" />
-    <ClInclude Include="lyra2\Sponge.h" />
-    <ClInclude Include="lyra2\Lyra2Z.h" />
+    <ClInclude Include="lyra2\lyra2.h" />
+    <ClInclude Include="lyra2\sponge.h" />
+    <ClInclude Include="lyra2\lyra2z.h" />
     <ClInclude Include="quark\groestl_transf_quad.h" />
     <ClInclude Include="quark\groestl_functions_quad.h" />
     <ClInclude Include="quark\cuda_quark.h" />
