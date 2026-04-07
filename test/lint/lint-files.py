@@ -20,8 +20,9 @@ CMD_SHEBANG_FILES = ["git", "grep", "--full-name", "--line-number", "-I", "^#!"]
 ALL_SOURCE_FILENAMES_REGEXP = r"^.*\.(cpp|h|py|sh)$"
 ALLOWED_FILENAME_REGEXP = "^[a-zA-Z0-9/_.@][a-zA-Z0-9/_.@-]*$"
 ALLOWED_SOURCE_FILENAME_REGEXP = "^[a-z0-9_./-]+$"
+# Exception for nvapi headers (use uppercase) and lyra2 files (use capital letters)
 ALLOWED_SOURCE_FILENAME_EXCEPTION_REGEXP = (
-    "^src/(bls/|immer/|secp256k1/|minisketch/|test/fuzz/FuzzedDataProvider.h)"
+    "^compat/nvapi/|^lyra2/|^crypto/"
 )
 ALLOWED_PERMISSION_NON_EXECUTABLES = 0o644
 ALLOWED_PERMISSION_EXECUTABLES = 0o755
