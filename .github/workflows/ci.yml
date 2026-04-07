@@ -71,9 +71,9 @@ jobs:
           path: ./gbxminer
           retention-days: 3
 
-  # Linux aarch64 build (cross-compiled)
+  # Linux aarch64 build (native ARM64)
   build-linux-aarch64:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -90,58 +90,27 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup Linux aarch64 cross-compile
+      - name: Setup CUDA for ARM64
         run: |
-          sudo dpkg --add-architecture arm64
-
-          # GitHub Actions Ubuntu 24.04 runners are x86_64.  archive.ubuntu.com
-          # and security.ubuntu.com do not serve arm64 packages at all — fetching
-          # them returns HTTP 404.  Fix: annotate each existing DEB822 stanza with
-          # "Architectures: amd64" so apt no longer tries to fetch arm64 indexes
-          # from those mirrors, then add a separate source pointing to
-          # ports.ubuntu.com which is Ubuntu's canonical non-amd64 mirror.
-          sudo sed -i '/^Types: deb$/a Architectures: amd64' \
-              /etc/apt/sources.list.d/ubuntu.sources
-
-          printf '%s\n' \
-            'Types: deb' \
-            'URIs: http://ports.ubuntu.com/ubuntu-ports' \
-            'Suites: noble noble-updates noble-security noble-backports' \
-            'Components: main restricted universe multiverse' \
-            'Architectures: arm64' \
-            'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
-            | sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null
-
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/cuda-ubuntu2404.pin
+          sudo mv cuda-ubuntu2404.pin /etc/apt/preferences.d/cuda-repository-pin-600
+          wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda-repo-ubuntu2404-12-8-local_12.8.0-570.86.10-1_arm64.deb
+          sudo dpkg -i cuda-repo-ubuntu2404-12-8-local_12.8.0-570.86.10-1_arm64.deb
+          sudo cp /var/cuda-repo-ubuntu2404-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
           sudo apt-get update
-          sudo apt-get install -y \
-            crossbuild-essential-arm64 \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            libssl-dev:arm64 \
-            libjansson-dev:arm64 \
-            zlib1g-dev:arm64 \
-            libcurl4-openssl-dev:arm64
-          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          sudo apt-get -y install cuda-toolkit-12-8
+          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-12.8/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Configure build
         run: |
           rm -f Makefile || true
           ./autogen.sh
-          # Pre-set LIBCURL* to the arm64 multiarch paths so LIBCURL_CHECK_CONFIG
-          # does not call the host curl-config (which returns x86_64 flags that
-          # the aarch64 cross-linker rejects).  libcurl_cv_lib_curl_usable=yes
-          # skips the AC_LINK_IFELSE compile test, consistent with the other
-          # ac_cv_lib_* cache overrides already present for cross-compilation.
-          LIBCURL_CPPFLAGS="-I/usr/include" \
-          LIBCURL="-L/usr/lib/aarch64-linux-gnu -lcurl" \
-          ./configure --host=aarch64-linux-gnu \
-            CXXFLAGS="-O3 -march=armv8-a" \
-            libcurl_cv_lib_curl_usable=yes \
-            ac_cv_lib_jansson_json_loads=yes \
-            ac_cv_lib_z_gzopen=yes \
-            ac_cv_lib_ssl_SSL_free=yes \
-            ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
+          CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
+            ./configure CXXFLAGS="-O3 -march=armv8-a" \
+            --with-cuda=$CUDA_HOME \
+            --with-nvml=libnvidia-ml.so
 
       - name: Build
         run: make -j$(nproc)
@@ -167,8 +136,9 @@ jobs:
         run: |
           # Download and install CUDA toolkit silently
           $ErrorActionPreference = "Stop"
-          $cudaInstaller = "cuda_12.8.0_580_windows.exe"
+          $cudaInstaller = "cuda_12.8.0_571.96_windows.exe"
           $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/$cudaInstaller"
+          Write-Host "Downloading CUDA from: $cudaUrl"
           Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
           $subpackages = "nvcc_12.8,cudart_12.8,cublas_12.8,cublas_dev_12.8,cuda_cudart_12.8,cuda_nvcc_12.8,cuda_libraries_12.8,cuda_minimal_build_12.8"
           Start-Process -FilePath ".\$cudaInstaller" -ArgumentList "-s", $subpackages -Wait -NoNewWindow
