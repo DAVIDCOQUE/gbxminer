@@ -163,6 +163,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Setup CUDA on Windows
+        run: |
+          # Download and install CUDA toolkit silently
+          $ErrorActionPreference = "Stop"
+          $cudaInstaller = "cuda_12.8.0_580_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/$cudaInstaller"
+          Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
+          $subpackages = "nvcc_12.8,cudart_12.8,cublas_12.8,cublas_dev_12.8,cuda_cudart_12.8,cuda_nvcc_12.8,cuda_libraries_12.8,cuda_minimal_build_12.8"
+          Start-Process -FilePath ".\$cudaInstaller" -ArgumentList "-s", $subpackages -Wait -NoNewWindow
+          Remove-Item $cudaInstaller
+          # Set CUDA environment variables
+          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8"
+          echo "$cudaPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "CUDA_HOME=$cudaPath" >> $env:GITHUB_ENV
+          echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
+          echo "PATH=$cudaPath\bin;$env:PATH" >> $env:GITHUB_ENV
+
       - name: Setup Windows build (MSYS2)
         uses: msys2/setup-msys2@v2
         with:
@@ -193,9 +210,12 @@ jobs:
           # from the pacman-installed packages.  No cache overrides are needed
           # because the configure link test runs with the native MinGW compiler
           # against native Windows libraries.
+          # CUDA paths are set via environment variables from the previous step
+          CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3" \
-            PKG_CONFIG="pkg-config --static"
+            PKG_CONFIG="pkg-config --static" \
+            --with-cuda="/c/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.8"
 
       - name: Build
         shell: msys2 {0}
