@@ -18,7 +18,9 @@ from typing import List
 HEADER_ID_PREFIX = 'GBXMINER_'
 HEADER_ID_SUFFIX = '_H'
 
-# EXCLUDE_FILES_WITH_PREFIX = ['src/crypto/ctaes'] Not needed atm.
+# Paths whose headers are excluded from the include-guard check.
+# Third-party subtrees that ship their own guard conventions go here.
+EXCLUDE_FILES_WITH_PREFIX: list = []
 
 
 def _get_header_file_lst() -> List[str]:

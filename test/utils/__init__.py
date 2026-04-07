@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2014 The Bitcoin Core developers
+# Copyright (c) 2026-2026 The GBXMiner developers
 # GBXminer Test Utilities
 # This package contains utility modules for testing GBXminer
 

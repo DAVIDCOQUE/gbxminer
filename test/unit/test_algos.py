@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2014 The Bitcoin Core developers
+# Copyright (c) 2026-2026 The GBXMiner developers
 """
 Unit tests for algorithm name/enum consistency in GBXminer.
 
@@ -176,11 +176,18 @@ class TestAlgorithms:
         assert expected in ALGO_NAMES, f"Alias '{alias}' points to unknown algo '{expected}'"
         assert expected != "", f"Alias '{alias}' points to empty string"
 
-    def test_algorithm_aliases_target_unique(self):
-        """Verify all alias targets are unique algorithm names."""
-        targets = list(ALGO_ALIASES.values())
-        unique_targets = set(targets)
-        assert len(targets) == len(unique_targets), "Some aliases point to the same target"
+    def test_algorithm_aliases_all_targets_are_valid(self):
+        """Verify every alias target names a real, non-empty algorithm.
+
+        Note: multiple aliases are *allowed* to resolve to the same canonical
+        name (e.g. both 'cryptonight-light' and 'cryptonight-lite' map to
+        'cryptolight').  Asserting uniqueness of targets would be wrong.
+        """
+        for alias, target in ALGO_ALIASES.items():
+            assert target in ALGO_NAMES, \
+                f"Alias '{alias}' points to unknown algorithm '{target}'"
+            assert target != "", \
+                f"Alias '{alias}' resolves to empty string"
 
     @pytest.mark.parametrize("fork,expected_algo", [
         (8, "graft"),

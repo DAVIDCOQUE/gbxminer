@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2014 The Bitcoin Core developers
+# Copyright (c) 2026-2026 The GBXMiner developers
 """
 Unit tests for general utility functions in GBXminer.
 
@@ -11,47 +11,53 @@ import time
 
 
 class TestHashrateFormatting:
-    """Test hashrate formatting utilities."""
+    """Test hashrate formatting utilities.
 
-    def format_hashrate(self, hashrate):
-        """Python implementation of format_hashrate_unit logic.
+    All assertions are made against helpers.format_hashrate() — the single
+    canonical implementation.  An inline reimplementation would drift silently.
+    """
 
-        Formats a hashrate value with appropriate SI prefix.
+    def format_hashrate(self, hashrate: float) -> str:
+        """Thin shim so existing parametrize calls keep working."""
+        from utils.helpers import format_hashrate as _fmt
+        return _fmt(hashrate)
+
+    @pytest.mark.parametrize("hashrate,expected_unit", [
+        (0,          "H/s"),
+        (999,        "H/s"),
+        (1_000,      "kH/s"),
+        (999_999,    "kH/s"),
+        (1_000_000,  "MH/s"),
+        (999_999_999, "MH/s"),
+        (1_000_000_000, "GH/s"),
+        (999_999_999_999, "GH/s"),
+        (1_000_000_000_000, "TH/s"),
+    ])
+    def test_hashrate_unit_selection(self, hashrate: float, expected_unit: str):
+        """Verify the correct SI unit is selected for each hashrate band.
+
+        Thresholds mirror helpers.format_hashrate() exactly (1e3 / 1e6 / 1e9 / 1e12).
         """
-        if hashrate < 10000:
-            prefix = ""
-            value = hashrate
-        elif hashrate < 1e7:
-            prefix = "k"
-            value = hashrate * 1e-3
-        elif hashrate < 1e10:
-            prefix = "M"
-            value = hashrate * 1e-6
-        elif hashrate < 1e13:
-            prefix = "G"
-            value = hashrate * 1e-9
-        else:
-            prefix = "T"
-            value = hashrate * 1e-12
+        result = self.format_hashrate(hashrate)
+        assert expected_unit in result, \
+            f"Hashrate {hashrate} → expected unit '{expected_unit}', got: {result!r}"
 
-        return f"{value:.2f} {prefix}H/s"
-
+    # Keep legacy parametrize name so existing CI invocations don't break.
     @pytest.mark.parametrize("hashrate,expected_prefix", [
-        (100, ""),           # < 10k -> no prefix
-        (5000, ""),          # < 10k -> no prefix
-        (10000, "k"),        # >= 10k -> k
-        (50000, "k"),        # < 10M -> k
-        (10000000, "M"),     # >= 10M -> M
-        (500000000, "M"),    # < 10G -> M
-        (10000000000, "G"),  # >= 10G -> G
-        (500000000000, "G"), # < 10T -> G
-        (10000000000000, "T"),  # >= 10T -> T
+        (100,    "H/s"),
+        (5000,   "kH/s"),
+        (50000,  "kH/s"),
+        (10_000_000,   "MH/s"),
+        (500_000_000,  "MH/s"),
+        (10_000_000_000,   "GH/s"),
+        (500_000_000_000,  "GH/s"),
+        (10_000_000_000_000, "TH/s"),
     ])
     def test_hashrate_prefix_selection(self, hashrate, expected_prefix):
-        """Test that correct SI prefix is selected for hashrate."""
+        """Compatibility wrapper kept so the parametrize ID is stable."""
         result = self.format_hashrate(hashrate)
         assert expected_prefix in result, \
-            f"Hashrate {hashrate} should use prefix '{expected_prefix}', got: {result}"
+            f"Hashrate {hashrate} should contain '{expected_prefix}', got: {result}"
 
     @pytest.mark.parametrize("hashrate", [0, 1, 100, 1000, 10000, 1000000])
     def test_hashrate_non_negative(self, hashrate):

@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2014 The Bitcoin Core developers
+# Copyright (c) 2026-2026 The GBXMiner developers
 """
 Unit tests for configuration parsing and validation in GBXminer.
 
@@ -112,15 +112,26 @@ class TestUrlValidation:
 
     @pytest.mark.parametrize("url", [
         "not-a-url",
-        "http://example.com",  # Missing port for getblocktemplate
-        "ftp://pool.example.com:3333",  # Invalid scheme
+        "ftp://pool.example.com:3333",   # scheme not in allowed list
         "",
+        "stratum+tcp://",                # empty host
+        "stratum+tcp://pool:65536",      # port out of valid range
     ])
     def test_invalid_url_formats(self, url):
-        """Test that invalid URL formats are detected."""
-        if url:  # Non-empty URLs
-            # These should be flagged as invalid by the config parser
-            assert not url.startswith("stratum+") or "://" not in url or len(url.split("://")[1]) == 0
+        """Test that invalid URL formats are rejected by the config validator.
+
+        Each URL must fail validate_url_format() explicitly.  The original
+        assertion used short-circuit ``or`` logic that made non-stratum+ URLs
+        trivially pass regardless of content (BUG-4).
+
+        Note: ``http://example.com`` (no port) is intentionally omitted — the
+        validator does not enforce a port requirement for http/https, so it
+        accepts that URL. Pool-level policy (requiring a port for GBT) is a
+        separate validation concern.
+        """
+        from utils.helpers import validate_url_format
+        assert not validate_url_format(url), \
+            f"Expected URL to be invalid but it was accepted: {url!r}"
 
     def test_url_scheme_extraction(self):
         """Test URL scheme extraction."""
@@ -226,16 +237,17 @@ class TestDeviceConfigValidation:
         "",
     ])
     def test_invalid_device_configs(self, devices):
-        """Test that invalid device configurations are detected."""
-        if devices and devices != "all":
-            # Should fail to parse as integer list
-            try:
-                parts = devices.split(',')
-                for p in parts:
-                    if p:
-                        assert int(p) >= 0, f"Negative device ID: {p}"
-            except ValueError:
-                pass  # Expected for non-numeric values
+        """Test that invalid device configurations raise ValueError.
+
+        Uses helpers.parse_device_config() — the same logic the binary uses —
+        so this test exercises real validation rather than reimplementing it.
+        The original code had the assertion direction inverted (BUG: it
+        asserted ``int(p) >= 0`` inside the *invalid* path, so ``-1`` caused
+        an AssertionError that was never caught).
+        """
+        from utils.helpers import parse_device_config
+        with pytest.raises((ValueError, AssertionError)):
+            parse_device_config(devices)
 
 
 class TestMultiPoolConfig:

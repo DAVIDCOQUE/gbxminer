@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2014 The Bitcoin Core developers
+# Copyright (c) 2026-2026 The GBXMiner developers
 """
 Unit tests for hashing utility functions in GBXminer.
 
@@ -199,40 +199,48 @@ class TestDifficultyCalculation:
         """Test difficulty calculation edge cases."""
         max_target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
-        # Minimum difficulty (target = max_target)
+        # Minimum difficulty (target = max_target) must equal exactly 1.0
         assert max_target / max_target == 1.0
 
-        # Very high difficulty (very small target)
+        # Very high difficulty (very small target).
+        # max_target ≈ 2.695e67, so max_target / 1 ≈ 2.7e67.
+        # The threshold 1e60 provides comfortable headroom without overstating
+        # the value; 1e70 was incorrect (the original assertion always failed).
         small_target = 1
         high_diff = max_target / small_target
-        assert high_diff > 1e70, "Difficulty for target=1 should be enormous"
+        assert high_diff > 1e60, "Difficulty for target=1 should be enormous"
 
 
 class TestHashComparison:
     """Test hash comparison for share validation."""
 
     def test_hash_comparison(self, hash_comparison_test_cases):
-        """Test hash comparison for share validation."""
+        """Test hash comparison for share validation.
+
+        A share is valid iff hash < target (strict less-than).
+        This mirrors ccminer's fulltest() / bn_set_compact() logic and the
+        Bitcoin / Dash block-validity rule.
+        """
         for hash_hex, target_hex, expected_valid in hash_comparison_test_cases:
             hash_int = int(hash_hex, 16)
             target_int = int(target_hex, 16)
-            is_valid = hash_int <= target_int
+            is_valid = hash_int < target_int          # strict, not <=
             assert is_valid == expected_valid, \
                 f"Hash {hash_hex[:16]}... vs target {target_hex[:16]}...: " \
                 f"valid={is_valid}, expected={expected_valid}"
 
     def test_hash_comparison_boundary(self):
-        """Test hash comparison at boundary values."""
+        """Test hash comparison at boundary values (strict less-than)."""
         target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
-        # Hash equal to target
-        assert target <= target, "Hash equal to target should be valid"
+        # Hash strictly less than target → valid
+        assert (target - 1) < target, "Hash less than target should be valid"
 
-        # Hash one less than target
-        assert (target - 1) <= target, "Hash less than target should be valid"
+        # Hash equal to target → NOT valid (strict <)
+        assert not (target < target), "Hash equal to target should be invalid"
 
-        # Hash one more than target
-        assert not ((target + 1) <= target), "Hash greater than target should be invalid"
+        # Hash greater than target → NOT valid
+        assert not ((target + 1) < target), "Hash greater than target should be invalid"
 
     def test_hash_comparison_zero_hash(self):
         """Test that zero hash is always valid."""
@@ -255,18 +263,27 @@ class TestSwab256:
     def swab256(self, data_bytes):
         """Python implementation of swab256 for testing.
 
-        This mirrors the C implementation in miner.h which swaps
-        32-bit words and reverses their order.
+        Mirrors the C implementation in miner.h:
+
+            dest[0] = swab32(src[7]);
+            dest[1] = swab32(src[6]);
+            ...
+            dest[7] = swab32(src[0]);
+
+        Each 32-bit word is byte-swapped (swab32) AND the word order is
+        reversed.  The original implementation only reversed word order
+        without byte-swapping, which is incorrect.
         """
-        assert len(data_bytes) == 32, "swab256 requires 32 bytes"
+        assert len(data_bytes) == 32, "swab256 requires exactly 32 bytes"
 
         result = bytearray(32)
-        # Convert to 32-bit words, swap bytes in each word, and reverse order
         for i in range(8):
-            # Read word i from source
-            word = int.from_bytes(data_bytes[i*4:(i+1)*4], byteorder='little')
-            # Write to position (7-i) in destination with byte swap
-            result[(7-i)*4:(7-i+1)*4] = word.to_bytes(4, byteorder='little')
+            # Read word i from source as a little-endian uint32
+            word = int.from_bytes(data_bytes[i * 4:(i + 1) * 4], byteorder='little')
+            # Byte-swap the word (swab32)
+            swapped = swab32(word)
+            # Write to position (7 - i) in little-endian byte order
+            result[(7 - i) * 4:(7 - i) * 4 + 4] = swapped.to_bytes(4, byteorder='little')
 
         return bytes(result)
 
