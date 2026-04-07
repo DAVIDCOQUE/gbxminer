@@ -18,28 +18,14 @@ env:
   DEBIAN_FRONTEND: noninteractive
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            arch: x86_64
-            artifact_name: gbxminer-linux-x86_64
-          - os: ubuntu-24.04
-            arch: aarch64
-            artifact_name: gbxminer-linux-aarch64
-          - os: windows-2025
-            arch: win64
-            artifact_name: gbxminer-windows-x86_64
-
+  # Linux x86_64 build
+  build-linux-x86_64:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup Linux build
-        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -51,11 +37,7 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup CUDA (Linux x86_64)
-        # win64 now runs on a native windows-2025 runner; this step only applies
-        # to the ubuntu-24.04 x86_64 build.  nvcc cannot cross-compile CUDA
-        # kernels from Linux for any other target.
-        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
+      - name: Setup CUDA
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
@@ -65,8 +47,50 @@ jobs:
           echo "PATH=/usr/local/cuda-12.8/bin:$PATH" >> $GITHUB_ENV
           echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
+      - name: Configure build
+        run: |
+          rm -f Makefile || true
+          ./autogen.sh
+          CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
+            ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
+            --with-cuda=$CUDA_HOME \
+            --with-nvml=libnvidia-ml.so
+
+      - name: Build
+        run: make -j$(nproc)
+
+      - name: Verify binary
+        run: |
+          file ./gbxminer
+          ./gbxminer --version || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: gbxminer-linux-x86_64
+          path: ./gbxminer
+          retention-days: 3
+
+  # Linux aarch64 build (cross-compiled)
+  build-linux-aarch64:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Linux build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            libtool \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            pkg-config
+
       - name: Setup Linux aarch64 cross-compile
-        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
         run: |
           sudo dpkg --add-architecture arm64
 
@@ -100,8 +124,46 @@ jobs:
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
 
+      - name: Configure build
+        run: |
+          rm -f Makefile || true
+          ./autogen.sh
+          # Pre-set LIBCURL* to the arm64 multiarch paths so LIBCURL_CHECK_CONFIG
+          # does not call the host curl-config (which returns x86_64 flags that
+          # the aarch64 cross-linker rejects).  libcurl_cv_lib_curl_usable=yes
+          # skips the AC_LINK_IFELSE compile test, consistent with the other
+          # ac_cv_lib_* cache overrides already present for cross-compilation.
+          LIBCURL_CPPFLAGS="-I/usr/include" \
+          LIBCURL="-L/usr/lib/aarch64-linux-gnu -lcurl" \
+          ./configure --host=aarch64-linux-gnu \
+            CXXFLAGS="-O3 -march=armv8-a" \
+            libcurl_cv_lib_curl_usable=yes \
+            ac_cv_lib_jansson_json_loads=yes \
+            ac_cv_lib_z_gzopen=yes \
+            ac_cv_lib_ssl_SSL_free=yes \
+            ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
+
+      - name: Build
+        run: make -j$(nproc)
+
+      - name: Verify binary
+        run: file ./gbxminer
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: gbxminer-linux-aarch64
+          path: ./gbxminer
+          retention-days: 3
+
+  # Windows x86_64 build
+  build-windows-x86_64:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Windows build (MSYS2)
-        if: matrix.os == 'windows-2025'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -122,38 +184,7 @@ jobs:
             make
             pkg-config
 
-      - name: Configure build (Linux x86_64)
-        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'
-        run: |
-          rm -f Makefile || true
-          ./autogen.sh
-          CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
-            ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
-            --with-cuda=$CUDA_HOME \
-            --with-nvml=libnvidia-ml.so
-
-      - name: Configure build (Linux aarch64)
-        if: matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'
-        run: |
-          rm -f Makefile || true
-          ./autogen.sh
-          # Pre-set LIBCURL* to the arm64 multiarch paths so LIBCURL_CHECK_CONFIG
-          # does not call the host curl-config (which returns x86_64 flags that
-          # the aarch64 cross-linker rejects).  libcurl_cv_lib_curl_usable=yes
-          # skips the AC_LINK_IFELSE compile test, consistent with the other
-          # ac_cv_lib_* cache overrides already present for cross-compilation.
-          LIBCURL_CPPFLAGS="-I/usr/include" \
-          LIBCURL="-L/usr/lib/aarch64-linux-gnu -lcurl" \
-          ./configure --host=aarch64-linux-gnu \
-            CXXFLAGS="-O3 -march=armv8-a" \
-            libcurl_cv_lib_curl_usable=yes \
-            ac_cv_lib_jansson_json_loads=yes \
-            ac_cv_lib_z_gzopen=yes \
-            ac_cv_lib_ssl_SSL_free=yes \
-            ac_cv_lib_crypto_EVP_DigestFinal_ex=yes
-
-      - name: Configure build (Windows native)
-        if: matrix.os == 'windows-2025'
+      - name: Configure build
         shell: msys2 {0}
         run: |
           rm -f Makefile || true
@@ -166,38 +197,22 @@ jobs:
             CXXFLAGS="-O3" \
             PKG_CONFIG="pkg-config --static"
 
-      - name: Build (Linux)
-        if: matrix.os == 'ubuntu-24.04'
-        run: make -j$(nproc 2>/dev/null || echo 4)
-
-      - name: Build (Windows)
-        if: matrix.os == 'windows-2025'
+      - name: Build
         shell: msys2 {0}
         run: make -j4
 
-      - name: Verify binary (Linux only)
-        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'x86_64'"
-        run: |
-          file ./gbxminer
-          ./gbxminer --version || true
-
-      - name: Verify binary (Linux aarch64)
-        if: "matrix.os == 'ubuntu-24.04' && matrix.arch == 'aarch64'"
-        run: file ./gbxminer
-
-      - name: Verify binary (Windows)
-        if: matrix.os == 'windows-2025'
+      - name: Verify binary
         shell: msys2 {0}
         run: file ./gbxminer.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ./gbxminer${{ matrix.os == 'windows-2025' && '.exe' || '' }}
+          name: gbxminer-windows-x86_64
+          path: ./gbxminer.exe
           retention-days: 3
 
-  # Lint job - runs in parallel with build
+  # Lint job - runs in parallel with builds
   lint:
     runs-on: ubuntu-24.04
     env:
@@ -213,18 +228,20 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck codespell
           cd test
           pip install -r requirements.txt
 
       - name: Run lint tests
         run: |
-          cd test
-          pytest lint/ -v --tb=short
+          cd test/lint
+          python3 all-lint.py
 
   # Run Python tests after Linux x86_64 binary is built
   test-linux-x86_64:
-    needs: build
-    if: needs.build.result == 'success'
+    needs: build-linux-x86_64
+    if: always() && needs.build-linux-x86_64.result == 'success'
     uses: ./.github/workflows/test.yml
     with:
       artifact_name: gbxminer-linux-x86_64
@@ -235,8 +252,8 @@ jobs:
   # Note: aarch64 binary is cross-compiled on x86_64, so we run tests on x86_64
   # The binary cannot be executed on x86_64, so only unit/lint tests will run
   test-linux-aarch64:
-    needs: build
-    if: needs.build.result == 'success'
+    needs: build-linux-aarch64
+    if: always() && needs.build-linux-aarch64.result == 'success'
     uses: ./.github/workflows/test.yml
     with:
       artifact_name: gbxminer-linux-aarch64
@@ -245,8 +262,8 @@ jobs:
 
   # Run Python tests after Windows x86_64 binary is built
   test-windows-x86_64:
-    needs: build
-    if: needs.build.result == 'success'
+    needs: build-windows-x86_64
+    if: always() && needs.build-windows-x86_64.result == 'success'
     uses: ./.github/workflows/test.yml
     with:
       artifact_name: gbxminer-windows-x86_64
