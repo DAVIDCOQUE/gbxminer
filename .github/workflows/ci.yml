@@ -196,3 +196,59 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ./gbxminer${{ matrix.os == 'windows-2025' && '.exe' || '' }}
           retention-days: 3
+
+  # Lint job - runs in parallel with build
+  lint:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHON_VERSION: "3.11"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd test
+          pip install -r requirements.txt
+
+      - name: Run lint tests
+        run: |
+          cd test
+          pytest lint/ -v --tb=short
+
+  # Run Python tests after Linux x86_64 binary is built
+  test-linux-x86_64:
+    needs: build
+    if: needs.build.result == 'success'
+    uses: ./.github/workflows/test.yml
+    with:
+      artifact_name: gbxminer-linux-x86_64
+      platform: linux-x86_64
+      runner: ubuntu-24.04
+
+  # Run Python tests after Linux aarch64 binary is built
+  # Note: aarch64 binary is cross-compiled on x86_64, so we run tests on x86_64
+  # The binary cannot be executed on x86_64, so only unit/lint tests will run
+  test-linux-aarch64:
+    needs: build
+    if: needs.build.result == 'success'
+    uses: ./.github/workflows/test.yml
+    with:
+      artifact_name: gbxminer-linux-aarch64
+      platform: linux-aarch64
+      runner: ubuntu-24.04
+
+  # Run Python tests after Windows x86_64 binary is built
+  test-windows-x86_64:
+    needs: build
+    if: needs.build.result == 'success'
+    uses: ./.github/workflows/test.yml
+    with:
+      artifact_name: gbxminer-windows-x86_64
+      platform: windows-x86_64
+      runner: windows-2025
