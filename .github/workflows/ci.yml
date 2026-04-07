@@ -180,12 +180,17 @@ jobs:
           # from the pacman-installed packages.  No cache overrides are needed
           # because the configure link test runs with the native MinGW compiler
           # against native Windows libraries.
-          # CUDA paths are set via environment variables from the previous step
+          # Convert Windows CUDA path to MSYS2 Unix-style path.
+          # Uses cygpath to handle the path conversion properly, avoiding issues
+          # with spaces in "Program Files" and "NVIDIA GPU Computing Toolkit"
+          # that would otherwise break autotools/Make path handling.
+          CUDA_PATH=$(cygpath -u -s "$CUDA_HOME")
+          echo "CUDA path (MSYS2): $CUDA_PATH"
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3" \
             PKG_CONFIG="pkg-config --static" \
-            --with-cuda="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8"
+            --with-cuda="$CUDA_PATH"
 
       - name: Build
         shell: msys2 {0}
