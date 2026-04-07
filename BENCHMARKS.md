@@ -2,9 +2,11 @@
 
 Benchmark conditions:
 - GPU temperature measured under load (>80°C, thermal saturation)
-- Hashrate measured after warmup period (120s+)
+- Hashrate measured after warmup period (minimum **900 seconds** / 15 minutes)
 - Default kernel launch configs unless specified
 - Stock GPU clocks (no OC/undervolt unless noted)
+
+**To submit benchmarks, you MUST run at least 900s.** Shorter runs will not be accepted.
 
 ---
 
@@ -94,6 +96,10 @@ Benchmark conditions:
 
 ## Submit Your Benchmark
 
+**Requirements:**
+- Run benchmarks for at least **900 seconds** (15 minutes) to ensure thermal stabilization
+- Use `--benchmark -a <algo> --time-limit=900` or longer
+
 To add your results, edit this file to add a row, then open a Pull Request:
 
 ```markdown
@@ -106,5 +112,5 @@ Include:
 - **GPU model** (exact variant if possible)
 - **Algorithm** (e.g., neoscrypt, x16r, x11)
 - **Hashrate** (use kH/s, MH/s, or H/s consistently)
-- **Temperature** under load (after 120+ seconds)
+- **Temperature** under load (after 900+ seconds)
 - **Notes** (any OC, undervolt, driver version, etc.)
