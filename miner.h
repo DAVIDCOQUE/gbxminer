@@ -602,6 +602,10 @@ uint32_t cuda_default_throughput(int thr_id, uint32_t defcount);
 #define device_intensity(t,f,d) cuda_default_throughput(t,d)
 double throughput2intensity(uint32_t throughput);
 
+// Occupancy-based dynamic launch configuration (UPGRADE.md 3.1)
+uint32_t cuda_optimal_throughput(int thr_id, int threads_per_block, size_t dynamic_smem_size);
+int cuda_get_max_active_blocks_per_mp(void *kernel, int threads_per_block, size_t dynamic_smem_size, int dev_id);
+
 void cuda_log_lasterror(int thr_id, const char* func, int line);
 void cuda_clear_lasterror();
 #define CUDA_LOG_ERROR() cuda_log_lasterror(thr_id, __func__, __LINE__)

@@ -24,6 +24,73 @@
 extern "C" {
 #endif
 
+// Occupancy-based dynamic launch configuration
+// Returns the maximum number of active blocks per multiprocessor for a given kernel
+static int cuda_occupancy_max_blocks_per_mp(void *kernel, int threads_per_block, size_t dynamic_smem_size, int dev_id)
+{
+	int max_active_blocks = 0;
+	cudaError_t err = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+		&max_active_blocks, kernel, threads_per_block, dynamic_smem_size);
+	if (err != cudaSuccess) {
+		// Fallback to a reasonable default if occupancy query fails
+		return 0;
+	}
+	return max_active_blocks;
+}
+
+// Calculate optimal throughput based on device occupancy
+// This replaces hardcoded intensity multipliers with dynamic calculation
+uint32_t cuda_optimal_throughput(int thr_id, int threads_per_block, size_t dynamic_smem_size)
+{
+	int dev_id = device_map[thr_id % MAX_GPUS];
+	cudaDeviceProp props;
+	cudaError_t err = cudaGetDeviceProperties(&props, dev_id);
+	if (err != cudaSuccess) {
+		// Fallback to default
+		return 0;
+	}
+
+	// Get device-specific maximums
+	int max_threads_per_mp = props.maxThreadsPerMultiProcessor;
+	int max_blocks_per_mp = props.maxBlocksPerMultiProcessor;
+	int multiprocessor_count = props.multiProcessorCount;
+
+	// Calculate optimal threads per SM based on threads per block
+	// We want to maximize occupancy while respecting hardware limits
+	int threads_per_sm = (max_threads_per_mp / threads_per_block) * threads_per_block;
+	if (threads_per_sm > max_threads_per_mp) {
+		threads_per_sm -= threads_per_block;
+	}
+
+	// Ensure we don't exceed max blocks per SM
+	int blocks_per_sm = threads_per_sm / threads_per_block;
+	if (blocks_per_sm > max_blocks_per_mp) {
+		blocks_per_sm = max_blocks_per_mp;
+		threads_per_sm = blocks_per_sm * threads_per_block;
+	}
+
+	// Total optimal throughput = threads per SM * number of SMs
+	// Use a conservative 85% of theoretical maximum to leave room for OS/display GPU
+	uint32_t optimal_throughput = (uint32_t)threads_per_sm * multiprocessor_count * 85 / 100;
+
+	// Apply sanity bounds
+	uint32_t min_throughput = threads_per_block * multiprocessor_count;
+	uint32_t max_throughput = threads_per_block * max_blocks_per_mp * multiprocessor_count;
+
+	if (optimal_throughput < min_throughput)
+		optimal_throughput = min_throughput;
+	if (optimal_throughput > max_throughput)
+		optimal_throughput = max_throughput;
+
+	return optimal_throughput;
+}
+
+// Legacy occupancy query function for external kernel use
+int cuda_get_max_active_blocks_per_mp(void *kernel, int threads_per_block, size_t dynamic_smem_size, int dev_id)
+{
+	return cuda_occupancy_max_blocks_per_mp(kernel, threads_per_block, dynamic_smem_size, dev_id);
+}
+
 // CUDA Devices on the System
 int cuda_num_devices()
 {
