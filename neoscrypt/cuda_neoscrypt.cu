@@ -82,7 +82,20 @@ __constant__ uint32_t BLAKE2S_SIGMA[10][16] = {
 #define shf_r_clamp32(out,a,b,shift) \
 	asm("shf.r.clamp.b32 %0, %1, %2, %3;" : "=r"(out) : "r"(a), "r"(b), "r"(shift));
 
-#if __CUDA_ARCH__ >= 300
+#if __CUDA_ARCH__ >= 700
+__device__ __forceinline__ uint32_t WarpShuffle(uint32_t a, uint32_t b, uint32_t c)
+{
+	return __shfl_sync(0xffffffff, a, b, c);
+}
+
+__device__ __forceinline__ void WarpShuffle3(uint32_t &a1, uint32_t &a2, uint32_t &a3, uint32_t b1, uint32_t b2, uint32_t b3, uint32_t c)
+{
+	a1 = __shfl_sync(0xffffffff, a1, b1, c);
+	a2 = __shfl_sync(0xffffffff, a2, b2, c);
+	a3 = __shfl_sync(0xffffffff, a3, b3, c);
+}
+
+#elif __CUDA_ARCH__ >= 300
 __device__ __forceinline__ uint32_t WarpShuffle(uint32_t a, uint32_t b, uint32_t c)
 {
 	return __shfl(a, b, c);
@@ -1016,7 +1029,7 @@ void fastkdf256_v2(const uint32_t thread, const uint32_t nonce, uint32_t* const 
 
 	((uint32_t*)output)[19] ^= nonce;
 	((uint32_t*)output)[39] ^= nonce;
-	((uint32_t*)output)[59] ^= nonce;;
+	((uint32_t*)output)[59] ^= nonce;
 	((ulonglong16 *)(Input + 8U * thread))[0] = ((ulonglong16*)output)[0];
 }
 #endif
@@ -1319,12 +1332,28 @@ static void Blake2Shost(uint32_t * inout, const uint32_t * inkey)
 	((uint8*)inout)[0] = V.lo;
 }
 
-
+#if __CUDA_ARCH__ >= 700
+#define TPB 64
+#define TPB2 128
+#define START_MINBLOCKS 4
+#define CHACHA_MINBLOCKS 4
+#define END_MINBLOCKS 8
+#elif __CUDA_ARCH__ >= 500
 #define TPB 32
 #define TPB2 64
+#define START_MINBLOCKS 2
+#define CHACHA_MINBLOCKS 2
+#define END_MINBLOCKS 4
+#else
+#define TPB 32
+#define TPB2 64
+#define START_MINBLOCKS 1
+#define CHACHA_MINBLOCKS 1
+#define END_MINBLOCKS 2
+#endif
 
 __global__
-__launch_bounds__(TPB2, 1)
+__launch_bounds__(TPB2, START_MINBLOCKS)
 void neoscrypt_gpu_hash_start(const int stratum, const uint32_t startNonce)
 {
 	__shared__ uint32_t s_data[64 * TPB2];
@@ -1342,7 +1371,7 @@ void neoscrypt_gpu_hash_start(const int stratum, const uint32_t startNonce)
 }
 
 __global__
-__launch_bounds__(TPB, 1)
+__launch_bounds__(TPB, CHACHA_MINBLOCKS)
 void neoscrypt_gpu_hash_chacha1()
 {
 	const uint32_t thread = (blockDim.y * blockIdx.x + threadIdx.y);
@@ -1350,6 +1379,7 @@ void neoscrypt_gpu_hash_chacha1()
 	const uint32_t shiftTr = 8U * thread;
 
 	uint4 X[4];
+	#pragma unroll 4
 	for (int i = 0; i < 4; i++)
 	{
 		X[i].x = __ldg((uint32_t*)&(Input + shiftTr)[i * 2] + 0 * 4 + threadIdx.x);
@@ -1387,7 +1417,7 @@ void neoscrypt_gpu_hash_chacha1()
 }
 
 __global__
-__launch_bounds__(TPB, 1)
+__launch_bounds__(TPB, CHACHA_MINBLOCKS)
 void neoscrypt_gpu_hash_salsa1()
 {
 	const uint32_t thread = (blockDim.y * blockIdx.x + threadIdx.y);
@@ -1395,6 +1425,7 @@ void neoscrypt_gpu_hash_salsa1()
 	const uint32_t shiftTr = 8U * thread;
 
 	uint4 Z[4];
+	#pragma unroll 4
 	for (int i = 0; i < 4; i++)
 	{
 		Z[i].x = __ldg((uint32_t*)&(Input + shiftTr)[i * 2] + ((0 + threadIdx.x) & 3) * 4 + threadIdx.x);
@@ -1431,7 +1462,7 @@ void neoscrypt_gpu_hash_salsa1()
 }
 
 __global__
-__launch_bounds__(TPB2, 8)
+__launch_bounds__(TPB2, END_MINBLOCKS)
 void neoscrypt_gpu_hash_ending(const int stratum, const uint32_t startNonce, uint32_t *resNonces)
 {
 	__shared__ uint32_t s_data[64 * TPB2];
@@ -1444,9 +1475,21 @@ void neoscrypt_gpu_hash_ending(const int stratum, const uint32_t startNonce, uin
 	__syncthreads();
 
 	uint2x4 Z[8];
-	#pragma unroll
+#if __CUDA_ARCH__ >= 500
+	#pragma unroll 8
 	for (int i = 0; i<8; i++)
 		Z[i] = __ldg4(&(Tr2 + shiftTr)[i]) ^ __ldg4(&(Tr + shiftTr)[i]);
+#else
+	#pragma unroll 8
+	for (int i = 0; i<8; i++) {
+		uint2x4 t1 = *(const uint2x4*)&(Tr2 + shiftTr)[i];
+		uint2x4 t2 = *(const uint2x4*)&(Tr + shiftTr)[i];
+		Z[i].x = t1.x ^ t2.x;
+		Z[i].y = t1.y ^ t2.y;
+		Z[i].z = t1.z ^ t2.z;
+		Z[i].w = t1.w ^ t2.w;
+	}
+#endif
 
 #if __CUDA_ARCH__ < 500
 	uint32_t outbuf = fastkdf32_v1(thread, ZNonce, (uint32_t*)Z, s_data);
@@ -1456,22 +1499,31 @@ void neoscrypt_gpu_hash_ending(const int stratum, const uint32_t startNonce, uin
 
 	if (outbuf <= c_target[1])
 	{
-		resNonces[0] = nonce;
-		//uint32_t tmp = atomicExch(resNonces, nonce);
-		//if(tmp != UINT32_MAX)
-		//	resNonces[1] = tmp;
+		// Use atomicExch so that if two threads both satisfy the target
+		// in the same batch, neither write silently stomps the other.
+		// The first thread to arrive stores its nonce in resNonces[0]
+		// and reads back UINT32_MAX (the sentinel set by cudaMemsetAsync).
+		// Any subsequent thread atomically swaps its own nonce in and
+		// receives the previous winner, which it stores as resNonces[1]
+		// for the host-side validator to check.
+		uint32_t tmp = atomicExch(&resNonces[0], nonce);
+		if (tmp != UINT32_MAX)
+			resNonces[1] = tmp;
 	}
 }
 
 static __thread uint32_t *hash1 = NULL;
 static __thread uint32_t *Trans1 = NULL;
-static __thread uint32_t *Trans2 = NULL; // 2 streams
-static __thread uint32_t *Trans3 = NULL; // 2 streams
+static __thread uint32_t *Trans2 = NULL;
+static __thread uint32_t *Trans3 = NULL;
+static __thread cudaStream_t neoscrypt_stream[MAX_GPUS] = { NULL };
 
 __host__
 void neoscrypt_init(int thr_id, uint32_t threads)
 {
 	cuda_get_arch(thr_id);
+
+	CUDA_SAFE_CALL(cudaStreamCreate(&neoscrypt_stream[thr_id]));
 
 	CUDA_SAFE_CALL(cudaMalloc(&d_NNonce[thr_id], 2 * sizeof(uint32_t)));
 	CUDA_SAFE_CALL(cudaMalloc(&hash1, 32 * 128 * sizeof(uint64_t) * threads));
@@ -1494,12 +1546,25 @@ void neoscrypt_free(int thr_id)
 	cudaFree(Trans1);
 	cudaFree(Trans2);
 	cudaFree(Trans3);
+
+	if (neoscrypt_stream[thr_id]) {
+		cudaStreamDestroy(neoscrypt_stream[thr_id]);
+		neoscrypt_stream[thr_id] = NULL;
+	}
 }
 
 __host__
 void neoscrypt_hash_k4(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *resNonces, bool stratum)
 {
-	CUDA_SAFE_CALL(cudaMemset(d_NNonce[thr_id], 0xff, 2 * sizeof(uint32_t)));
+	// Hoist the stream handle so the nonce-buffer reset can be queued
+	// asynchronously. The old cudaMemset() was an implicit synchronisation
+	// barrier: it forced the CPU to wait for all outstanding GPU work before
+	// the reset was issued, then the kernel chain could not start until the
+	// blocking memset returned. Using cudaMemsetAsync() on the same stream
+	// keeps the entire sequence — reset → hash_start → salsa → chacha →
+	// ending → memcpy — as a single, uninterrupted command queue.
+	cudaStream_t stream = neoscrypt_stream[thr_id];
+	CUDA_SAFE_CALL(cudaMemsetAsync(d_NNonce[thr_id], 0xff, 2 * sizeof(uint32_t), stream));
 
 	const int threadsperblock2 = TPB2;
 	dim3 grid2((threads + threadsperblock2 - 1) / threadsperblock2);
@@ -1509,14 +1574,15 @@ void neoscrypt_hash_k4(int thr_id, uint32_t threads, uint32_t startNounce, uint3
 	dim3 grid3((threads * 4 + threadsperblock - 1) / threadsperblock);
 	dim3 block3(4, threadsperblock >> 2);
 
-	neoscrypt_gpu_hash_start <<<grid2, block2>>> (stratum, startNounce); //fastkdf
+	neoscrypt_gpu_hash_start <<<grid2, block2, 0, stream>>> (stratum, startNounce);
 
-	neoscrypt_gpu_hash_salsa1 <<<grid3, block3>>> ();
-	neoscrypt_gpu_hash_chacha1 <<<grid3, block3>>> ();
+	neoscrypt_gpu_hash_salsa1 <<<grid3, block3, 0, stream>>> ();
+	neoscrypt_gpu_hash_chacha1 <<<grid3, block3, 0, stream>>> ();
 
-	neoscrypt_gpu_hash_ending <<<grid2, block2>>> (stratum, startNounce, d_NNonce[thr_id]); //fastkdf+end
+	neoscrypt_gpu_hash_ending <<<grid2, block2, 0, stream>>> (stratum, startNounce, d_NNonce[thr_id]);
 
-	CUDA_SAFE_CALL(cudaMemcpy(resNonces, d_NNonce[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpyAsync(resNonces, d_NNonce[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
+	CUDA_SAFE_CALL(cudaStreamSynchronize(stream));
 }
 
 __host__
