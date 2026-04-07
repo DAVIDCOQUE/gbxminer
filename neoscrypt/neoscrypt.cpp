@@ -20,12 +20,24 @@ int scanhash_neoscrypt(int thr_id, struct work* work, uint32_t max_nonce, unsign
 	const uint32_t first_nonce = pdata[19];
 
 	int dev_id = device_map[thr_id];
+	int sm = device_sm[dev_id];
 	int intensity = is_windows() ? 18 : 19;
-	if (strstr(device_name[dev_id], "GTX 10")) intensity = 21; // >= 20 need more than 2GB
-	if (strstr(device_name[dev_id], "TITAN")) intensity = 21;
+
+	if (sm >= 890) intensity = 23;
+	else if (sm >= 800) intensity = 22;
+	else if (sm >= 750) intensity = 21;
+	else if (sm >= 700) intensity = 21;
+	else if (sm >= 600) intensity = 20;
+	else if (sm >= 500) intensity = 19;
+	
+	if (strstr(device_name[dev_id], "GTX 1080") || strstr(device_name[dev_id], "GTX 1080 Ti")) intensity = 21;
+	if (strstr(device_name[dev_id], "GTX 1070")) intensity = 20;
+	if (strstr(device_name[dev_id], "TITAN V")) intensity = 21;
+	if (strstr(device_name[dev_id], "V100")) intensity = 21;
+	if (strstr(device_name[dev_id], "P100")) intensity = 19;
 
 	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
-	throughput = throughput / 32; /* set for max intensity ~= 20 */
+	throughput = throughput / 32;
 	api_set_throughput(thr_id, throughput);
 
 	if (opt_benchmark)
