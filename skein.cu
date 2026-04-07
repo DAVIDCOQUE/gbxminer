@@ -8,7 +8,7 @@
 #include "miner.h"
 #include "cuda_helper.h"
 
-#include <openssl/sha.h>
+#include <openssl/evp.h>
 
 static uint32_t *d_hash[MAX_GPUS];
 static __thread bool sm5 = true;
@@ -327,17 +327,17 @@ void sha2_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32
 extern "C" void skeincoinhash(void *output, const void *input)
 {
 	sph_skein512_context ctx_skein;
-	SHA256_CTX sha256;
-
 	uint32_t hash[16];
 
 	sph_skein512_init(&ctx_skein);
 	sph_skein512(&ctx_skein, input, 80);
 	sph_skein512_close(&ctx_skein, hash);
 
-	SHA256_Init(&sha256);
-	SHA256_Update(&sha256, (unsigned char *)hash, 64);
-	SHA256_Final((unsigned char *)hash, &sha256);
+	EVP_MD_CTX *sha256_ctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(sha256_ctx, EVP_sha256(), NULL);
+	EVP_DigestUpdate(sha256_ctx, (unsigned char *)hash, 64);
+	EVP_DigestFinal_ex(sha256_ctx, (unsigned char *)hash, NULL);
+	EVP_MD_CTX_free(sha256_ctx);
 
 	memcpy(output, hash, 32);
 }

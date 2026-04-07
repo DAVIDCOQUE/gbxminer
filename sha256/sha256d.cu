@@ -5,21 +5,24 @@
 
 #include <miner.h>
 #include <cuda_helper.h>
-#include <openssl/sha.h>
+#include <openssl/evp.h>
 
-// CPU Check
+// CPU Check - CUDA 12 compatible using EVP API
 extern "C" void sha256d_hash(void *output, const void *input)
 {
 	unsigned char _ALIGN(64) hash[64];
-	SHA256_CTX sha256;
 
-	SHA256_Init(&sha256);
-	SHA256_Update(&sha256, (unsigned char *)input, 80);
-	SHA256_Final(hash, &sha256);
+	EVP_MD_CTX *sha256_ctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(sha256_ctx, EVP_sha256(), NULL);
+	EVP_DigestUpdate(sha256_ctx, input, 80);
+	EVP_DigestFinal_ex(sha256_ctx, hash, NULL);
+	EVP_MD_CTX_free(sha256_ctx);
 
-	SHA256_Init(&sha256);
-	SHA256_Update(&sha256, hash, 32);
-	SHA256_Final((unsigned char *)output, &sha256);
+	sha256_ctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(sha256_ctx, EVP_sha256(), NULL);
+	EVP_DigestUpdate(sha256_ctx, hash, 32);
+	EVP_DigestFinal_ex(sha256_ctx, (unsigned char *)output, NULL);
+	EVP_MD_CTX_free(sha256_ctx);
 }
 
 static bool init[MAX_GPUS] = { 0 };
