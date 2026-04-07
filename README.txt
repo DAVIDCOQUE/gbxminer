@@ -1,13 +1,14 @@
 
-GBXminer 1.0.0                    "NeoScrypt - Fastest Miner"
+GBXminer 1.1.0                    " - Fastest nVidia GPU Miner"
 ---------------------------------------------------------------
 
 ***************************************************************
 If you find this tool useful and like to support its continuous
           development, then consider a donation.
 
-d0wn3d@github:
+GBXMiner by d0wn3d@github:
   BTC  : 1JZTdGfCAgRmLo4vsgMTJ57dCiDT24gT6f
+  GBX  : GT6XDe4RsS8vGpqW5mU3nywkCAanZZ1bT8
 
 Original ccminer by tpruvot:
   BTC  : 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo

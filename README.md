@@ -54,16 +54,21 @@ GBXminer is designed to be the fastest miner available on GitHub for many algori
 ## Requirements
 
 ### Runtime Requirements
-- NVIDIA GPU with CUDA support
-- NVIDIA Driver (460+ recommended)
-- CUDA Toolkit 12.0+ runtime (included with driver)
+- NVIDIA GPU: Maxwell architecture or newer.
+- NVIDIA Driver 525.60+ recommended (Required for CUDA 12 compatibility).
+- CUDA Runtime: libcudart.so.12 (Install via 'cuda-runtime-12' or full Toolkit).
+- Jansson (libjansson4) - For JSON parsing.
+- Curl (libcurl4) - For network communication.
+- OpenSSL (libcrypto.so.3) - For secure connections.
 
 ### Build Requirements (for building from source)
 - CUDA Toolkit 12.0+
-- OpenSSL development libraries
-- Curl development libraries
+- OpenSSL Development (libssl-dev)
+- Curl Development (libcurl4-openssl-dev)
+- Jansson Development (libjansson-dev)
 - pthreads
 - GCC/G++ with C++11 support
+
 
 ## Usage
 
@@ -183,7 +188,9 @@ Then run:
 
 ## Donation
 
-BTC: 1JZTdGfCAgRmLo4vsgMTJ57dCiDT24gT6f (d0wn3d)
+Bitcoin: 1JZTdGfCAgRmLo4vsgMTJ57dCiDT24gT6f (d0wn3d)
+
+GoByte: GT6XDe4RsS8vGpqW5mU3nywkCAanZZ1bT8 (d0wn3d)
 
 ## Credits
 
