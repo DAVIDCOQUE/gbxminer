@@ -185,7 +185,7 @@ jobs:
           ./configure \
             CXXFLAGS="-O3" \
             PKG_CONFIG="pkg-config --static" \
-            --with-cuda="/c/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.8"
+            --with-cuda="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8"
 
       - name: Build
         shell: msys2 {0}
