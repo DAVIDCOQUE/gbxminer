@@ -5,14 +5,18 @@
  */
 
 #include <unistd.h>
+#include <math.h>
 
 #include "miner.h"
 #include "algos.h"
+#include "nvml.h"
 #include <cuda_runtime.h>
 
 #ifdef __APPLE__
 #include "compat/pthreads/pthread_barrier.hpp"
 #endif
+
+extern char driver_version[32];
 
 int bench_algo = -1;
 
@@ -20,6 +24,8 @@ static double algo_hashrates[MAX_GPUS][ALGO_COUNT] = { 0 };
 static uint32_t algo_throughput[MAX_GPUS][ALGO_COUNT] = { 0 };
 static int algo_mem_used[MAX_GPUS][ALGO_COUNT] = { 0 };
 static int device_mem_free[MAX_GPUS] = { 0 };
+static double algo_temps[MAX_GPUS][ALGO_COUNT] = { 0 };
+static double algo_power[MAX_GPUS][ALGO_COUNT] = { 0 };
 
 static pthread_barrier_t miner_barr;
 static pthread_barrier_t algo_barr;
@@ -218,6 +224,13 @@ bool bench_algo_switch_next(int thr_id)
 	// store to dump a table per gpu later
 	algo_hashrates[thr_id][prev_algo] = hashrate;
 
+	// capture temperature and power for efficiency calculation
+	struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
+	float temp = gpu_temp(cgpu);
+	unsigned int power_mw = gpu_power(cgpu);
+	algo_temps[thr_id][prev_algo] = temp;
+	algo_power[thr_id][prev_algo] = power_mw / 1000.0; // convert to watts
+
 	// wait the other threads to display logs correctly
 	if (opt_n_threads > 1) {
 		pthread_barrier_wait(&algo_barr);
@@ -254,12 +267,84 @@ void bench_display_results()
 	for (int n=0; n < opt_n_threads; n++)
 	{
 		int dev_id = device_map[n];
-		applog(LOG_BLUE, "Benchmark results for GPU #%d - %s:", dev_id, device_name[dev_id]);
+		char gpu_model[64] = { 0 };
+		strncpy(gpu_model, device_name[dev_id], sizeof(gpu_model) - 1);
+
+		double total_rate = 0.0;
+		double total_temp = 0.0;
+		double total_power = 0.0;
+		int algo_count = 0;
+
+		applog(LOG_BLUE, "");
+		applog(LOG_BLUE, "+------------+----------+------+-------+-------+-------+------------+");
+		applog(LOG_BLUE, "| Algorithm  | Hashrate | Temp | Notes | Driver| Version| Efficiency |");
+		applog(LOG_BLUE, "+------------+----------+------+-------+-------+-------+------------+");
+
 		for (int i=0; i < ALGO_COUNT-1; i++) {
 			double rate = algo_hashrates[n][i];
 			if (rate == 0.0) continue;
-			applog(LOG_INFO, "%12s : %12.1f kH/s, %5d MB, %8u thr.", algo_names[i],
-				rate / 1024., algo_mem_used[n][i], algo_throughput[n][i]);
+
+			double kh_rate = rate / 1024.0;
+			double mh_rate = kh_rate / 1024.0;
+			double temp = algo_temps[n][i];
+			double power = algo_power[n][i];
+			double efficiency = (power > 0) ? kh_rate / power : 0.0;
+
+			char rate_str[32] = { 0 };
+			char eff_str[32] = { 0 };
+
+			if (mh_rate >= 1000.0) {
+				snprintf(rate_str, sizeof(rate_str), "%.2f GH/s", mh_rate / 1024.0);
+			} else if (mh_rate >= 1.0) {
+				snprintf(rate_str, sizeof(rate_str), "%.2f MH/s", mh_rate);
+			} else {
+				snprintf(rate_str, sizeof(rate_str), "%.2f kH/s", kh_rate);
+			}
+
+			if (efficiency >= 1000.0) {
+				snprintf(eff_str, sizeof(eff_str), "%.2f MH/W", efficiency / 1024.0);
+			} else {
+				snprintf(eff_str, sizeof(eff_str), "%.2f kH/W", efficiency);
+			}
+
+			applog(LOG_INFO, "| %-10s | %8s | %3.0fC | %-5s | %-5s | %9s | %10s |",
+				algo_names[i], rate_str, temp, "", driver_version, PACKAGE_VERSION, eff_str);
+
+			total_rate += mh_rate;
+			total_temp += temp;
+			total_power += power;
+			algo_count++;
 		}
+
+		applog(LOG_BLUE, "+------------+----------+------+-------+-------+-------+------------+");
+
+		if (algo_count > 0) {
+			double avg_rate = total_rate / algo_count;
+			double avg_temp = total_temp / algo_count;
+			double avg_power = total_power / algo_count;
+			double avg_efficiency = (avg_power > 0) ? avg_rate / avg_power : 0.0;
+
+			char avg_rate_str[32] = { 0 };
+			char avg_eff_str[32] = { 0 };
+
+			if (avg_rate >= 1000.0) {
+				snprintf(avg_rate_str, sizeof(avg_rate_str), "%.2f GH/s", avg_rate / 1024.0);
+			} else {
+				snprintf(avg_rate_str, sizeof(avg_rate_str), "%.2f MH/s", avg_rate);
+			}
+
+			if (avg_efficiency >= 1000.0) {
+				snprintf(avg_eff_str, sizeof(avg_eff_str), "%.2f MH/W", avg_efficiency / 1024.0);
+			} else {
+				snprintf(avg_eff_str, sizeof(avg_eff_str), "%.2f kH/W", avg_efficiency);
+			}
+
+			applog(LOG_BLUE, "| %-10s | %8s | %3.0fC | %-5s | %-5s | %9s | %10s |",
+				"AVERAGE", avg_rate_str, avg_temp, "", driver_version, PACKAGE_VERSION, avg_eff_str);
+			applog(LOG_BLUE, "+------------+----------+------+-------+-------+-------+------------+");
+		}
+
+		applog(LOG_BLUE, "GPU Model: %s", gpu_model);
+		applog(LOG_BLUE, "");
 	}
 }

@@ -7,6 +7,7 @@ Benchmark conditions:
 - Stock GPU clocks (no OC/undervolt unless noted)
 
 **To submit benchmarks, you MUST run at least 900s.** Shorter runs will not be accepted.
+**To run a benchmark, you must use:** `./gbxminer-x.x.x --benchmark -a <algo> --time-limit=900`
 
 ---
 
@@ -16,6 +17,7 @@ Benchmark conditions:
 | Algorithm | Hashrate | Temp | Notes | Driver | Version | Efficiency | Verified?
 |------------|----------|------|-------|-------|-------|-----------|-------|
 | NeoScrypt | 1743.29 kH/s | 84°C | 1755 MHz | 580.126.09 | gbxminer 1.0.1 | 11.72 kH/W | [X]
+| NeoScrypt | 1678.37 kH/s | 83°C | 1802 MHz | 580.126.09 | gbxminer 1.1.0 | 10.82 kH/W | [X]
 
 ---
 
