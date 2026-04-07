@@ -42,7 +42,11 @@ using namespace Concurrency;
 #include <stdint.h>
 #include <string.h>
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <emmintrin.h>
+#elif defined(__aarch64__) || defined(__arm__)
+#include <arm_neon.h>
+#endif
 #ifndef __APPLE__
 #include <malloc.h>
 #endif
@@ -63,7 +67,8 @@ using namespace Concurrency;
 #endif
 #endif
 
-// A thin wrapper around the builtin __m128i type
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+// A thin wrapper around the builtin __m128i type (x86/x86_64 SSE2)
 class uint32x4_t
 {
 public:
@@ -100,6 +105,88 @@ public:
 
 // non-member overload
 inline const uint32x4_t operator+(const uint32_t left, const uint32x4_t &right) { return _mm_add_epi32(_mm_set1_epi32((int)left), right); }
+
+#elif defined(__aarch64__) || defined(__arm__)
+// A thin wrapper around ARM NEON uint32x4_t type
+// Note: We use uint32x4_t_neon as internal storage to avoid conflict with NEON's uint32x4_t
+typedef uint32x4_t uint32x4_t_neon;
+class uint32x4_t
+{
+public:
+#if WIN32
+	void * operator new(size_t size) _THROW1(_STD bad_alloc) { void *p; if ((p = _aligned_malloc(size, 16)) == 0) { static const std::bad_alloc nomem; _RAISE(nomem); } return (p); }
+	void operator delete(void *p) { _aligned_free(p); }
+	void * operator new[](size_t size) _THROW1(_STD bad_alloc) { void *p; if ((p = _aligned_malloc(size, 16)) == 0) { static const std::bad_alloc nomem; _RAISE(nomem); } return (p); }
+	void operator delete[](void *p) { _aligned_free(p); }
+#else
+	void * operator new(size_t size) _THROW1(_STD bad_alloc) { void *p; if (posix_memalign(&p, 16, size) < 0) { static const std::bad_alloc nomem; throw nomem; } return (p); }
+	void operator delete(void *p) { free(p); }
+	void * operator new[](size_t size) _THROW1(_STD bad_alloc) { void *p; if (posix_memalign(&p, 16, size) < 0) { static const std::bad_alloc nomem; throw nomem; } return (p); }
+	void operator delete[](void *p) { free(p); }
+#endif
+	uint32x4_t() { };
+	uint32x4_t(const uint32x4_t_neon init) { val = init; }
+	uint32x4_t(const uint32_t init) { val = vdupq_n_u32(init); }
+	uint32x4_t(const uint32_t a, const uint32_t b, const uint32_t c, const uint32_t d) {
+		uint32_t tmp[4] = {a, b, c, d};
+		val = vld1q_u32(tmp);
+	}
+	inline operator const uint32x4_t_neon() const { return val; }
+	inline const uint32x4_t operator+(const uint32x4_t &other) const { return vaddq_u32(val, other); }
+	inline const uint32x4_t operator+(const uint32_t other) const { return vaddq_u32(val, vdupq_n_u32(other)); }
+	inline uint32x4_t& operator+=(const uint32x4_t other) { val = vaddq_u32(val, other); return *this; }
+	inline uint32x4_t& operator+=(const uint32_t other) { val = vaddq_u32(val, vdupq_n_u32(other)); return *this; }
+	inline const uint32x4_t operator&(const uint32_t other) const { return vandq_u32(val, vdupq_n_u32(other)); }
+	inline const uint32x4_t operator&(const uint32x4_t &other) const { return vandq_u32(val, other); }
+	inline const uint32x4_t operator|(const uint32x4_t &other) const { return vorrq_u32(val, other); }
+	inline const uint32x4_t operator^(const uint32x4_t &other) const { return veorq_u32(val, other); }
+	inline const uint32x4_t operator<<(const int num) const { return vshlq_u32(val, vdupq_n_s32(num)); }
+	inline const uint32x4_t operator>>(const int num) const { return vshlq_u32(val, vdupq_n_s32(-num)); }
+	inline const uint32_t operator[](const int num) const { return vgetq_lane_u32(val, num); }
+ protected:
+	uint32x4_t_neon val;
+};
+
+// non-member overload
+inline const uint32x4_t operator+(const uint32_t left, const uint32x4_t &right) { return vaddq_u32(vdupq_n_u32(left), right); }
+
+#else
+// Fallback for other architectures - scalar implementation
+class uint32x4_t
+{
+public:
+#if WIN32
+	void * operator new(size_t size) _THROW1(_STD bad_alloc) { void *p; if ((p = _aligned_malloc(size, 16)) == 0) { static const std::bad_alloc nomem; _RAISE(nomem); } return (p); }
+	void operator delete(void *p) { _aligned_free(p); }
+	void * operator new[](size_t size) _THROW1(_STD bad_alloc) { void *p; if ((p = _aligned_malloc(size, 16)) == 0) { static const std::bad_alloc nomem; _RAISE(nomem); } return (p); }
+	void operator delete[](void *p) { _aligned_free(p); }
+#else
+	void * operator new(size_t size) _THROW1(_STD bad_alloc) { void *p; if (posix_memalign(&p, 16, size) < 0) { static const std::bad_alloc nomem; throw nomem; } return (p); }
+	void operator delete(void *p) { free(p); }
+	void * operator new[](size_t size) _THROW1(_STD bad_alloc) { void *p; if (posix_memalign(&p, 16, size) < 0) { static const std::bad_alloc nomem; throw nomem; } return (p); }
+	void operator delete[](void *p) { free(p); }
+#endif
+	uint32x4_t() { v[0] = v[1] = v[2] = v[3] = 0; }
+	uint32x4_t(const uint32_t init) { v[0] = v[1] = v[2] = v[3] = init; }
+	uint32x4_t(const uint32_t a, const uint32_t b, const uint32_t c, const uint32_t d) { v[0] = a; v[1] = b; v[2] = c; v[3] = d; }
+	inline const uint32x4_t operator+(const uint32x4_t &other) const { return uint32x4_t(v[0]+other.v[0], v[1]+other.v[1], v[2]+other.v[2], v[3]+other.v[3]); }
+	inline const uint32x4_t operator+(const uint32_t other) const { return uint32x4_t(v[0]+other, v[1]+other, v[2]+other, v[3]+other); }
+	inline uint32x4_t& operator+=(const uint32x4_t other) { v[0]+=other.v[0]; v[1]+=other.v[1]; v[2]+=other.v[2]; v[3]+=other.v[3]; return *this; }
+	inline uint32x4_t& operator+=(const uint32_t other) { v[0]+=other; v[1]+=other; v[2]+=other; v[3]+=other; return *this; }
+	inline const uint32x4_t operator&(const uint32_t other) const { return uint32x4_t(v[0]&other, v[1]&other, v[2]&other, v[3]&other); }
+	inline const uint32x4_t operator&(const uint32x4_t &other) const { return uint32x4_t(v[0]&other.v[0], v[1]&other.v[1], v[2]&other.v[2], v[3]&other.v[3]); }
+	inline const uint32x4_t operator|(const uint32x4_t &other) const { return uint32x4_t(v[0]|other.v[0], v[1]|other.v[1], v[2]|other.v[2], v[3]|other.v[3]); }
+	inline const uint32x4_t operator^(const uint32x4_t &other) const { return uint32x4_t(v[0]^other.v[0], v[1]^other.v[1], v[2]^other.v[2], v[3]^other.v[3]); }
+	inline const uint32x4_t operator<<(const int num) const { return uint32x4_t(v[0]<<num, v[1]<<num, v[2]<<num, v[3]<<num); }
+	inline const uint32x4_t operator>>(const int num) const { return uint32x4_t(v[0]>>num, v[1]>>num, v[2]>>num, v[3]>>num); }
+	inline const uint32_t operator[](const int num) const { return v[num]; }
+protected:
+	uint32_t v[4];
+};
+
+// non-member overload
+inline const uint32x4_t operator+(const uint32_t left, const uint32x4_t &right) { return uint32x4_t(left+right[0], left+right[1], left+right[2], left+right[3]); }
+#endif
 
 
 //
