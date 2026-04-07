@@ -8,10 +8,17 @@
 
 #define localtime_r(src, dst) localtime_s(dst, src)
 
+/* Only define sleep() if unistd.h is not available (e.g., MSVC).
+ * MSYS2/MinGW provides its own sleep() in unistd.h with correct signature.
+ */
+#ifndef _UCRT_H
+#ifndef __MINGW32__
 static __inline void sleep(int secs)
 {
 	Sleep(secs * 1000);
 }
+#endif
+#endif
 
 enum {
 	PRIO_PROCESS = 0,
