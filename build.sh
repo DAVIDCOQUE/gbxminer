@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 
-# Simple script to create the Makefile and build
+set -euo pipefail
 
-# export PATH="$PATH:/usr/local/cuda/bin/"
+make distclean 2>/dev/null || true
 
-make distclean || echo clean
+rm -rf .deps
+rm -f Makefile.in configure config.h.in config.log config.status stamp-h1
+rm -f configure~ depcomp
+rm -rf autom4te.cache
+rm -f aclocal.m4
 
-rm -f Makefile.in
-rm -f config.status
-./autogen.sh || echo done
+./autogen.sh
 
-# CFLAGS="-O2" ./configure
 ./configure.sh
 
 make -j$(nproc)
