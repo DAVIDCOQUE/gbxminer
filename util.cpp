@@ -2185,12 +2185,6 @@ void print_hash_tests(void)
 	// blake256hash(&hash[0], &buf[0], 14);
 	// printpfx("blake", hash);
 
-	blake2b_hash(&hash[0], &buf[0]);
-	printpfx("blake2b", hash);
-
-	blake2s_hash(&hash[0], &buf[0]);
-	printpfx("blake2s", hash);
-
 	bmw_hash(&hash[0], &buf[0]);
 	printpfx("bmw", hash);
 
@@ -2268,12 +2262,6 @@ void print_hash_tests(void)
 	pentablakehash(&hash[0], &buf[0]);
 	printpfx("pentablake", hash);
 
-	phi2_hash(&hash[0], &buf[0]);
-	printpfx("phi", hash);
-
-	polytimos_hash(&hash[0], &buf[0]);
-	printpfx("polytimos", hash);
-
 	quarkhash(&hash[0], &buf[0]);
 	printpfx("quark", hash);
 
@@ -2292,12 +2280,6 @@ void print_hash_tests(void)
 	sha256t_hash(&hash[0], &buf[0]);
 	printpfx("sha256t", hash);
 
-	sha256q_hash(&hash[0], &buf[0]);
-	printpfx("sha256q", hash);
-
-	sia_blake2b_hash(&hash[0], &buf[0]);
-	printpfx("sia", hash);
-
 	sibhash(&hash[0], &buf[0]);
 	printpfx("sib", hash);
 
@@ -2306,9 +2288,6 @@ void print_hash_tests(void)
 
 	skein2hash(&hash[0], &buf[0]);
 	printpfx("skein2", hash);
-
-	skunk_hash(&hash[0], &buf[0]);
-	printpfx("skunk", hash);
 
 	// stellite_hash(&hash[0], &buf[0]);
 	// printpfx("stelitte", hash);
@@ -2328,9 +2307,6 @@ void print_hash_tests(void)
 	// blake256hash(&hash[0], &buf[0], 8);
 	// printpfx("vanilla", hash);
 
-	tribus_hash(&hash[0], &buf[0]);
-	printpfx("tribus", hash);
-
 	veltorhash(&hash[0], &buf[0]);
 	printpfx("veltor", hash);
 
@@ -2342,30 +2318,6 @@ void print_hash_tests(void)
 
 	x11evo_hash(&hash[0], &buf[0]);
 	printpfx("x11evo", hash);
-
-	x11hash(&hash[0], &buf[0]);
-	printpfx("x11", hash);
-
-	x12hash(&hash[0], &buf[0]);
-	printpfx("x12", hash);
-
-	x13hash(&hash[0], &buf[0]);
-	printpfx("x13", hash);
-
-	x14hash(&hash[0], &buf[0]);
-	printpfx("x14", hash);
-
-	x15hash(&hash[0], &buf[0]);
-	printpfx("x15", hash);
-
-	x16r_hash(&hash[0], &buf[0]);
-	printpfx("x16r", hash);
-
-	x16s_hash(&hash[0], &buf[0]);
-	printpfx("x16s", hash);
-
-	x17hash(&hash[0], &buf[0]);
-	printpfx("x17", hash);
 
 	//memcpy(buf, zrtest, 80);
 	zr5hash(&hash[0], &buf[0]);

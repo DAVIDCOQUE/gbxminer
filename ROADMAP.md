@@ -58,16 +58,23 @@
 - **Reason for removal**: Monero utilizes RandomX, which is mined on CPUs. Trying to mine this algorithm with a modern GPU is mathematically obsolete and wastes user electricity.
 
 ### X Series (X11, X11Evo, X12-X17)
+- **Status**: **REMOVED** ✅
 - **Reason for removal**: X11 is utilized by Dash, which supports ASIC mining. No modern GPU can compete with ASIC hardware on the X-series algorithms.
+
+### X11-Dependent Algorithms (Bastion, Polytimos, Phi, Phi2, Tribus, Skunk)
+- **Status**: **REMOVED** ✅
+- **Reason for removal**: These algorithms depend on X11 shared functions (cubehash, luffa, echo, shabal, etc.) that are ASIC-dominated. Removing them cleans up the codebase significantly.
 
 ### Scrypt & Scrypt-Jane (Litecoin, Dogecoin)
 - **Reason for removal**: Litecoin uses the Scrypt algorithm. Dogecoin and Litecoin utilize Scrypt-based mining, which is heavily dominated by ASIC machines.
 
 ### Blake Family (Blake2b, Blake2s, Decred)
+- **Status**: **REMOVED** ✅
 - **Reason for removal**: 100% ASIC territory. Leaving these in the miner only provides false hope to users who will see zero shares accepted.
 
-### Equihash (Original) & Zcash
-- **Reason for removal**: Zcash remains a top choice for miners interested in Equihash, but base Equihash has heavy ASIC presence. The roadmap should strictly focus on GPU-friendly variants like ZelHash.
+### Equihash / ZelHash (Flux)
+- **Status**: **Kept** (ZelHash only)
+- **Reason**: Original Equihash (Zcash) is ASIC-dominated, but ZelHash (Flux) remains GPU-viable. Focus on ZelHash variant.
 
 ### Groestl, Skein, Quark, Qubit
 - **Reason for removal**: "Ghost" algorithms. The networks securing these are largely dead, abandoned, or overrun by ASICs. Removing these will drastically clean up the CUDA kernels and reduce binary size.

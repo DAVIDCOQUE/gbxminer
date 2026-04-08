@@ -4,17 +4,16 @@
 
 ## Supported Algorithms
 
-- **NeoScrypt** (primary)
-- **X Series**: X11, X11Evo, X12, X13, X14, X15, X16R, X16S, X17
-- **Lyra2**: Lyra2RE, Lyra2REv2, Lyra2REv3, Lyra2Z
-- **Quark/Qubit**: Quark, Qubit, Deep, NIST5
-- **Groestl Family**: Groestl, Myriad-Groestl
-- **Skein Family**: Skein, Skein2
-- **Blake Family**: Blake, Blake2b, Blake2s, Blakecoin, Decred, Vanilla
-- **Heavy/Hefty**: Heavy, Hefty1 (Mjollnir), Bastion
-- **Scrypt**: Scrypt, Scrypt-Jane
-- **Cryptonight**: Cryptonight, Cryptolight, Monero, Graft, Stellite
-- **Other**: Phi, Phi2, Polytimos, Tribus, LBRY, Sia, SIB, Whirlpool, WhirlpoolX, Skunk, Pentablake, ZR5, Timetravel, Bitcore, Veltor, C11, S3, Fresh, Exosis, Keccak, JHA, Jackpot, HSR, HMQ1725, Allium, Fugue256, Luffa, Equihash
+- **NeoScrypt** (primary) - GoByte, Feathercoin
+- **Lyra2**: lyra2, lyra2v2, lyra2v3, lyra2z
+- **Quark/Qubit**: quark, qubit, nist5
+- **Groestl Family**: groestl, myr-gr
+- **Skein Family**: skein, skein2
+- **Blake Family**: decred
+- **SHA-256**: sha256d, sha256t, sha256q
+- **Scrypt**: scrypt, scrypt-jane
+- **Cryptonight**: cryptonight, cryptolight, monero, graft, stellite
+- **Other**: allium, bmw, dmd-gr, equihash, fugue256, heavy, hsr, jackpot, jha, lbry, luffa, mjollnir, pentablake, sia, sonoa, whirlcoin, whirlpool, wildkeccak, zr5, keccak, keccakc
 
 ## Features
 

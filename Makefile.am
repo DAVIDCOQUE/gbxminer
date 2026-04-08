@@ -24,7 +24,7 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  crc32.c hefty1.c \
 			  gbxminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
-			  nvsettings.cpp \
+			  nvsettings.cpp stubs.cpp \
 			  heavy/heavy.cu \
 			  heavy/cuda_blake512.cu heavy/cuda_blake512.h \
 			  heavy/cuda_combine.cu heavy/cuda_combine.h \
@@ -32,7 +32,6 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  heavy/cuda_hefty1.cu heavy/cuda_hefty1.h \
 			  heavy/cuda_keccak512.cu heavy/cuda_keccak512.h \
 			  heavy/cuda_sha256.cu heavy/cuda_sha256.h \
-			  heavy/bastion.cu heavy/cuda_bastion.cu \
 			  fuguecoin.cpp Algo256/cuda_fugue256.cu sph/fugue.c uint256.h \
 			  groestlcoin.cpp cuda_groestlcoin.cu cuda_groestlcoin.h \
 			  myriadgroestl.cpp cuda_myriadgroestl.cu \
@@ -62,31 +61,13 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  quark/quarkcoin.cu quark/cuda_quark_compactionTest.cu \
 			  neoscrypt/neoscrypt.cpp neoscrypt/neoscrypt-cpu.c neoscrypt/cuda_neoscrypt.cu \
 			  pentablake.cu skein.cu cuda_skeincoin.cu skein2.cpp zr5.cu \
-			  skunk/skunk.cu skunk/cuda_skunk.cu skunk/cuda_skunk_streebog.cu \
-			  sha256/sha256d.cu sha256/cuda_sha256d.cu sha256/sha256t.cu sha256/cuda_sha256t.cu sha256/sha256q.cu sha256/cuda_sha256q.cu \
-			  sia/sia.cu sia/sia-rpc.cpp sph/blake2b.c \
+			  sha256/sha256d.cu sha256/cuda_sha256d.cu sha256/sha256t.cu sha256/cuda_sha256t.cu \
 			  sph/bmw.c sph/blake.c sph/groestl.c sph/jh.c sph/keccak.c sph/skein.c \
 			  sph/cubehash.c sph/echo.c sph/luffa.c sph/sha2.c sph/shavite.c sph/simd.c \
 			  sph/hamsi.c sph/hamsi_helper.c sph/streebog.c \
 			  sph/shabal.c sph/whirlpool.c sph/sha2big.c sph/haval.c \
 			  sph/ripemd.c sph/sph_sha2.c \
-			  polytimos.cu \
-			  lbry/lbry.cu lbry/cuda_sha256_lbry.cu lbry/cuda_sha512_lbry.cu lbry/cuda_lbry_merged.cu \
-			  qubit/qubit.cu qubit/qubit_luffa512.cu qubit/deep.cu qubit/luffa.cu \
-			  tribus/tribus.cu tribus/cuda_echo512_final.cu \
-			  x11/x11.cu x12/x12.cu x11/fresh.cu x11/cuda_x11_luffa512.cu x11/cuda_x11_cubehash512.cu \
-			  x11/cuda_x11_shavite512.cu x11/cuda_x11_simd512.cu x11/cuda_x11_echo.cu x11/exosis.cu \
-			  x11/cuda_x11_luffa512_Cubehash.cu x11/x11evo.cu x11/timetravel.cu x11/bitcore.cu \
-			  x13/x13.cu x13/cuda_x13_hamsi512.cu x13/cuda_x13_fugue512.cu \
-			  x13/hsr.cu x13/cuda_hsr_sm3.cu x13/sm3.c \
-			  x15/x14.cu x15/x15.cu x15/cuda_x14_shabal512.cu x15/cuda_x15_whirlpool.cu \
-			  x15/whirlpool.cu x15/cuda_x15_whirlpool_sm3.cu \
-			  x16/x16r.cu x16/x16s.cu x16/cuda_x16_echo512.cu x16/cuda_x16_fugue512.cu \
-			  x16/cuda_x16_shabal512.cu x16/cuda_x16_simd512_80.cu \
-			  x16/cuda_x16_echo512_64.cu \
-			  x17/x17.cu x17/hmq17.cu x17/sonoa.cu x17/cuda_x17_haval256.cu x17/cuda_x17_sha512.cu \
-			  phi/phi.cu phi/phi2.cu phi/cuda_phi2.cu phi/cuda_phi2_cubehash512.cu x11/cuda_streebog_maxwell.cu \
-			  x11/c11.cu x11/s3.cu x11/sib.cu x11/veltor.cu x11/cuda_streebog.cu
+			  lbry/lbry.cu lbry/cuda_sha256_lbry.cu lbry/cuda_sha512_lbry.cu lbry/cuda_lbry_merged.cu
 
 if !ARCH_ARM64
   # equihash
@@ -181,22 +162,6 @@ heavy/cuda_hefty1.o: heavy/cuda_hefty1.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
 
 qubit/qubit_luffa512.o: qubit/qubit_luffa512.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
-
-# Luffa and Echo are faster with 80 registers than 128
-x11/cuda_x11_luffa512.o: x11/cuda_x11_luffa512.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
-
-x11/cuda_x11_luffa512_Cubehash.o: x11/cuda_x11_luffa512_Cubehash.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=76 -o $@ -c $<
-
-x11/cuda_x11_simd512.o: x11/cuda_x11_simd512.cu
-	$(NVCC) $(nvcc_FLAGS) -Xcompiler -Wno-unused-variable -o $@ -c $<
-
-x13/cuda_x13_hamsi512.o: x13/cuda_x13_hamsi512.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=72 -o $@ -c $<
-
-x17/cuda_x17_sha512.o: x17/cuda_x17_sha512.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
 
 quark/cuda_quark_blake512.o: quark/cuda_quark_blake512.cu
