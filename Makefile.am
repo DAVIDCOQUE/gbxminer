@@ -44,14 +44,10 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  Algo256/cuda_bmw256.cu Algo256/cuda_cubehash256.cu \
 			  Algo256/cuda_blake256.cu Algo256/cuda_groestl256.cu \
 			  Algo256/cuda_keccak256_sm3.cu Algo256/cuda_keccak256.cu Algo256/cuda_skein256.cu \
-			  Algo256/blake256.cu Algo256/decred.cu Algo256/vanilla.cu Algo256/keccak256.cu \
+			  Algo256/blake256.cu Algo256/keccak256.cu \
 			  Algo256/blake2s.cu sph/blake2s.c \
 			  Algo256/bmw.cu Algo256/cuda_bmw.cu \
 			  blake2b.cu \
-			  crypto/xmr-rpc.cpp crypto/wildkeccak-cpu.cpp crypto/wildkeccak.cu \
-			  crypto/cryptolight.cu crypto/cryptolight-core.cu crypto/cryptolight-cpu.cpp \
-			  crypto/cryptonight.cu crypto/cryptonight-core.cu crypto/cryptonight-extra.cu \
-			  crypto/cryptonight-cpu.cpp crypto/oaes_lib.cpp crypto/aesb.cpp crypto/cpu/c_keccak.c \
 			  equi/equi-stratum.cpp \
 			  JHA/jha.cu JHA/jackpotcoin.cu JHA/cuda_jha_keccak512.cu \
 			  JHA/cuda_jha_compactionTest.cu cuda_checkhash.cu \
@@ -60,8 +56,8 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  quark/nist5.cu \
 			  quark/quarkcoin.cu quark/cuda_quark_compactionTest.cu \
 			  neoscrypt/neoscrypt.cpp neoscrypt/neoscrypt-cpu.c neoscrypt/cuda_neoscrypt.cu \
-			  pentablake.cu skein.cu cuda_skeincoin.cu skein2.cpp zr5.cu \
 			  sha256/sha256d.cu sha256/cuda_sha256d.cu sha256/sha256t.cu sha256/cuda_sha256t.cu \
+			  skein.cu cuda_skeincoin.cu skein2.cpp \
 			  sph/bmw.c sph/blake.c sph/groestl.c sph/jh.c sph/keccak.c sph/skein.c \
 			  sph/cubehash.c sph/echo.c sph/luffa.c sph/sha2.c sph/shavite.c sph/simd.c \
 			  sph/hamsi.c sph/hamsi_helper.c sph/streebog.c \
@@ -69,16 +65,22 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  sph/ripemd.c sph/sph_sha2.c \
 			  lbry/lbry.cu lbry/cuda_sha256_lbry.cu lbry/cuda_sha512_lbry.cu lbry/cuda_lbry_merged.cu
 
+# ETCHash (ECIP-1099 Ethereum Classic PoW)
+gbxminer_SOURCES += \
+			  etchash/etchash.cpp \
+			  etchash/etchash_cuda_miner_kernel.cu
+
+if HAVE_NVRTC
+gbxminer_SOURCES += \
+			  kapow/ProgPow.cpp \
+			  kapow/kapow.cpp \
+			  kapow/kapow_cuda_miner_kernel.cpp
+endif
+
 if !ARCH_ARM64
   # equihash
   gbxminer_SOURCES += equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu
 
-  # scrypt
-  gbxminer_SOURCES += scrypt.cpp scrypt-jane.cpp \
-    scrypt/blake.cu scrypt/keccak.cu scrypt/sha256.cu \
-    scrypt/salsa_kernel.cu scrypt/test_kernel.cu \
-    scrypt/fermi_kernel.cu scrypt/kepler_kernel.cu \
-    scrypt/nv_kernel.cu scrypt/nv_kernel2.cu scrypt/titan_kernel.cu
 endif
 
 if HAVE_NVML
@@ -109,6 +111,10 @@ endif
 #gbxminer_LDFLAGS += -Lequi/lib
 #gbxminer_LDADD += -lsodium
 gbxminer_LDADD += -lcuda
+
+if HAVE_NVRTC
+gbxminer_LDADD += -lnvrtc
+endif
 
 nvcc_ARCH :=
 # CUDA 12+ support - target all architectures from Maxwell to Hopper
@@ -152,11 +158,6 @@ Algo256/blake256.o: Algo256/blake256.cu
 Algo256/cuda_bmw.o: Algo256/cuda_bmw.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=76 -o $@ -c $<
 
-crypto/cryptonight-core.o: crypto/cryptonight-core.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
-
-crypto/cryptonight-extra.o: crypto/cryptonight-extra.cu
-	$(NVCC) $(nvcc_FLAGS) -o $@ -c $<
 
 heavy/cuda_hefty1.o: heavy/cuda_hefty1.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=80 -o $@ -c $<
@@ -181,4 +182,7 @@ JHA/cuda_jha_compactionTest.o: JHA/cuda_jha_compactionTest.cu
 
 skein.o: skein.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
+
+etchash/etchash_cuda_miner_kernel.o: etchash/etchash_cuda_miner_kernel.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
 

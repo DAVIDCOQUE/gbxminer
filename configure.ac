@@ -161,4 +161,38 @@ AC_SUBST(NVCC)
 
 AC_SUBST(OPENMP_CFLAGS)
 
+dnl ── KaPow / ProgPoW: optional NVRTC runtime-compilation support ──────────
+dnl
+dnl  KaPow (Ravencoin ProgPoW) requires libnvrtc.so to JIT-compile the
+dnl  period-specific inner-loop kernel at runtime.  The library ships as
+dnl  part of the CUDA toolkit (/usr/local/cuda/lib64/libnvrtc.so).
+dnl
+dnl  Pass --with-nvrtc to enable; omit it to build without KaPow support
+dnl  (the binary will still compile and all other algos remain functional).
+dnl
+dnl  Usage:
+dnl    ./configure --with-nvrtc
+dnl    ./configure --with-nvrtc=/opt/cuda
+
+AC_ARG_WITH([nvrtc],
+  [AS_HELP_STRING([--with-nvrtc[=PATH]],
+    [enable KaPow/ProgPoW support via libnvrtc (default: disabled)])],
+  [have_nvrtc=yes
+   if test "x$withval" != "xyes" ; then
+     NVRTC_PATH="$withval"
+     CUDA_LDFLAGS="$CUDA_LDFLAGS -L$withval/lib64"
+     CUDA_INCLUDES="$CUDA_INCLUDES -I$withval/include"
+   fi],
+  [have_nvrtc=no])
+
+AM_CONDITIONAL([HAVE_NVRTC], [test "x$have_nvrtc" = "xyes"])
+
+if test "x$have_nvrtc" = "xyes" ; then
+  AC_DEFINE([HAVE_NVRTC], [1],
+    [Define to 1 if libnvrtc is available for KaPow/ProgPoW JIT compilation])
+  AC_MSG_NOTICE([KaPow/ProgPoW enabled (--with-nvrtc)])
+else
+  AC_MSG_NOTICE([KaPow/ProgPoW disabled (pass --with-nvrtc to enable)])
+fi
+
 AC_OUTPUT
