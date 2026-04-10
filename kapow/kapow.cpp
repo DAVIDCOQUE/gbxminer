@@ -13,16 +13,18 @@
  * time, scanhash_kapow() logs an error and returns -1.
  */
 
+/* C++ STL headers MUST precede miner.h (which defines min/max macros
+ * that break C++ template parsing in <bits/stl_algobase.h>).     */
+#include "kapow/kapow_cuda_miner_kernel.h"
+#include "kapow/ProgPow.h"
+#include "etchash/etchash_cuda_miner_kernel.h"
+#include "kapow/kapow.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "miner.h"
-#include "kapow/kapow.h"
-#include "kapow/kapow_cuda_miner_kernel.h"
-
-/* Re-use ETCHash light-cache/DAG types and Keccak helpers. */
-#include "etchash/etchash_cuda_miner_kernel.h"
 
 extern "C" {
 #include "sph/sph_keccak.h"
@@ -206,7 +208,7 @@ static bool kapow_prepare_dag(int thr_id, uint32_t block_height)
 
     if (g->allocated_light < lgt_bytes) {
         if (g->d_light) cudaFree(g->d_light);
-        if (cudaMalloc(&g->d_light, lgt_bytes) != cudaSuccess) {
+        if (cudaMalloc((void**)&g->d_light, lgt_bytes) != cudaSuccess) {
             applog(LOG_ERR, "GPU #%d: KaPow cudaMalloc light failed", dev_id);
             free(h_light); return false;
         }
@@ -214,7 +216,7 @@ static bool kapow_prepare_dag(int thr_id, uint32_t block_height)
     }
     if (g->allocated_dag < dag_bytes) {
         if (g->d_dag) cudaFree(g->d_dag);
-        if (cudaMalloc(&g->d_dag, dag_bytes) != cudaSuccess) {
+        if (cudaMalloc((void**)&g->d_dag, dag_bytes) != cudaSuccess) {
             applog(LOG_ERR, "GPU #%d: KaPow cudaMalloc DAG failed", dev_id);
             free(h_light); return false;
         }
@@ -233,7 +235,7 @@ static bool kapow_prepare_dag(int thr_id, uint32_t block_height)
 
     /* Re-use ETCHash DAG generation kernel (same algorithm). */
     etchash_set_constants(g->d_dag, dag_items, g->d_light, lgt_items);
-    etchash_generate_dag(dag_bytes, 8192, 128, 0);
+    etchash_generate_dag(dag_bytes, 8192, 128, nullptr);
 
     g->epoch      = (int)epoch;
     g->dag_size   = dag_items;
@@ -288,7 +290,7 @@ int scanhash_kapow(int thr_id, struct work* work,
 
     cudaMemset((void*)g->d_results, 0, sizeof(KapowSearch_results));
 
-    kapow_run_search(g->module, grid_size, block_size, 0,
+    kapow_run_search(g->module, grid_size, block_size, nullptr,
                      g->d_results,
                      (uint64_t)start_nonce,
                      g->d_dag, g->dag_size,

@@ -2188,25 +2188,6 @@ void print_hash_tests(void)
 	bmw_hash(&hash[0], &buf[0]);
 	printpfx("bmw", hash);
 
-	c11hash(&hash[0], &buf[0]);
-	printpfx("c11", hash);
-
-	cryptolight_hash(&hash[0], &buf[0]);
-	printpfx("cryptolight", hash);
-
-	cryptonight_hash(&hash[0], &buf[0]);
-	printpfx("cryptonight", hash);
-
-	memset(buf, 0, 180);
-	decred_hash(&hash[0], &buf[0]);
-	printpfx("decred", hash);
-
-	deephash(&hash[0], &buf[0]);
-	printpfx("deep", hash);
-
-	fresh_hash(&hash[0], &buf[0]);
-	printpfx("fresh", hash);
-
 	// fugue256_hash(&hash[0], &buf[0], 32);
 	// printpfx("fugue256", hash);
 
@@ -2215,12 +2196,6 @@ void print_hash_tests(void)
 
 	// heavycoin_hash(&hash[0], &buf[0], 32);
 	// printpfx("heavy", hash);
-
-	hmq17hash(&hash[0], &buf[0]);
-	printpfx("hmq1725", hash);
-
-	hsr_hash(&hash[0], &buf[0]);
-        printpfx("hsr", hash);
 
 	jha_hash(&hash[0], &buf[0]);
 	printpfx("jha", hash);
@@ -2259,29 +2234,17 @@ void print_hash_tests(void)
 	nist5hash(&hash[0], &buf[0]);
 	printpfx("nist5", hash);
 
-	pentablakehash(&hash[0], &buf[0]);
-	printpfx("pentablake", hash);
-
 	quarkhash(&hash[0], &buf[0]);
 	printpfx("quark", hash);
 
 	qubithash(&hash[0], &buf[0]);
 	printpfx("qubit", hash);
 
-	scrypthash(&hash[0], &buf[0]);
-	printpfx("scrypt", hash);
-
-	scryptjane_hash(&hash[0], &buf[0]);
-	printpfx("scrypt-jane", hash);
-
 	sha256d_hash(&hash[0], &buf[0]);
 	printpfx("sha256d", hash);
 
 	sha256t_hash(&hash[0], &buf[0]);
 	printpfx("sha256t", hash);
-
-	sibhash(&hash[0], &buf[0]);
-	printpfx("sib", hash);
 
 	skeincoinhash(&hash[0], &buf[0]);
 	printpfx("skein", hash);
@@ -2292,37 +2255,11 @@ void print_hash_tests(void)
 	// stellite_hash(&hash[0], &buf[0]);
 	// printpfx("stelitte", hash);
 
-	s3hash(&hash[0], &buf[0]);
-	printpfx("S3", hash);
-
-	timetravel_hash(&hash[0], &buf[0]);
-	printpfx("timetravel", hash);
-
-	bitcore_hash(&hash[0], &buf[0]);
-	printpfx("bitcore", hash);
-
-	exosis_hash(&hash[0], &buf[0]);
-	printpfx("exosis", hash);
-
 	// blake256hash(&hash[0], &buf[0], 8);
 	// printpfx("vanilla", hash);
 
-	veltorhash(&hash[0], &buf[0]);
-	printpfx("veltor", hash);
-
 	wcoinhash(&hash[0], &buf[0]);
 	printpfx("whirlpool", hash);
-
-	//whirlxHash(&hash[0], &buf[0]);
-	//printpfx("whirlpoolx", hash);
-
-	x11evo_hash(&hash[0], &buf[0]);
-	printpfx("x11evo", hash);
-
-	//memcpy(buf, zrtest, 80);
-	zr5hash(&hash[0], &buf[0]);
-	//zr5hash_pok(&hash[0], (uint32_t*) &buf[0]);
-	printpfx("ZR5", hash);
 
 	printf("\n");
 

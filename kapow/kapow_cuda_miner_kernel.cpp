@@ -22,12 +22,16 @@
  * The build still succeeds; KaPow simply cannot be used.
  */
 
-#include "miner.h"
+/* C++ STL headers MUST precede miner.h (which defines min/max macros
+ * that break C++ template parsing). ProgPow.h uses std::string and
+ * std::stringstream extensively.                                   */
 #include "kapow/kapow_cuda_miner_kernel.h"
 #include "kapow/ProgPow.h"
 
 #include <map>
 #include <string>
+
+#include "miner.h"
 
 /* ------------------------------------------------------------------ */
 /*  NVRTC availability guard                                            */

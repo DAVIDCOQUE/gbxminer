@@ -31,13 +31,17 @@
  * full DAG on the device from the uploaded light cache.
  */
 
+/* C++ STL headers (pulled in by etchash_cuda_miner_kernel.h) MUST be
+ * included before miner.h, which defines min/max as C macros that
+ * break C++ template parsing in <bits/stl_algobase.h>.            */
+#include "etchash/etchash_cuda_miner_kernel.h"
+#include "etchash/etchash.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "miner.h"
-#include "etchash/etchash.h"
-#include "etchash/etchash_cuda_miner_kernel.h"
 
 /* ------------------------------------------------------------------ */
 /*  SPH Keccak-512 for light-cache generation (host side)              */
@@ -245,7 +249,7 @@ static bool etchash_prepare_dag(int thr_id, uint32_t block_height)
 
     if (g->allocated_light < lgt_bytes) {
         if (g->d_light) cudaFree(g->d_light);
-        if (cudaMalloc(&g->d_light, lgt_bytes) != cudaSuccess) {
+        if (cudaMalloc((void**)&g->d_light, lgt_bytes) != cudaSuccess) {
             applog(LOG_ERR, "GPU #%d: cudaMalloc light cache failed", dev_id);
             free(h_light);
             return false;
@@ -255,7 +259,7 @@ static bool etchash_prepare_dag(int thr_id, uint32_t block_height)
 
     if (g->allocated_dag < dag_bytes) {
         if (g->d_dag) cudaFree(g->d_dag);
-        if (cudaMalloc(&g->d_dag, dag_bytes) != cudaSuccess) {
+        if (cudaMalloc((void**)&g->d_dag, dag_bytes) != cudaSuccess) {
             applog(LOG_ERR, "GPU #%d: cudaMalloc DAG failed (%.2f GB needed)",
                    dev_id, (double)dag_bytes / 1073741824.0);
             free(h_light);
@@ -285,7 +289,7 @@ static bool etchash_prepare_dag(int thr_id, uint32_t block_height)
     etchash_generate_dag(dag_bytes,
                          /* blocks  */ 8192,
                          /* threads */ 128,
-                         /* stream  */ 0);
+                         /* stream  */ nullptr);
 
     g->epoch      = (int)epoch;
     g->dag_size   = dag_items;
@@ -334,7 +338,7 @@ int scanhash_etchash(int thr_id, struct work* work,
     const uint32_t block_size = 128;
     const uint32_t grid_size  = (nonces + block_size - 1) / block_size;
 
-    etchash_run_search(grid_size, block_size, 0,
+    etchash_run_search(grid_size, block_size, nullptr,
                        g->d_results, (uint64_t)start_nonce);
 
     /* Synchronise and collect results. */

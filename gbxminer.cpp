@@ -1456,7 +1456,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	for (i = 0; i < 8; i++)
 		work->data[1 + i] = le32dec((uint32_t *)sctx->job.prevhash + i);
 
- else if (opt_algo == ALGO_EQUIHASH) {
+	if (opt_algo == ALGO_EQUIHASH) {
 		memcpy(&work->data[9], sctx->job.coinbase, 32+32); // merkle [9..16] + reserved
 		work->data[25] = le32dec(sctx->job.ntime);
 		work->data[26] = le32dec(sctx->job.nbits);
@@ -1813,28 +1813,28 @@ static void *miner_thread(void *userdata)
 			#endif
 			memcpy(&work, &g_work, sizeof(struct work));
 			nonceptr[0] = (UINT32_MAX / opt_n_threads) * thr_id; // 0 if single thr
-		} else
+		} else {
 			nonceptr[0]++; //??
-
- else if (opt_algo == ALGO_EQUIHASH) {
-			nonceptr[1]++;
-			nonceptr[1] |= thr_id << 24;
-			//applog_hex(&work.data[27], 32);
-		} else if (opt_algo == ALGO_JHA) {
-			// suprnova job_id check without data/target/height change...
-			if (have_stratum && strcmp(work.job_id, g_work.job_id)) {
-				pthread_mutex_unlock(&g_work_lock);
-				work_done = true;
-				continue;
+			if (opt_algo == ALGO_EQUIHASH) {
+				nonceptr[1]++;
+				nonceptr[1] |= thr_id << 24;
+				//applog_hex(&work.data[27], 32);
+			} else if (opt_algo == ALGO_JHA) {
+				// suprnova job_id check without data/target/height change...
+				if (have_stratum && strcmp(work.job_id, g_work.job_id)) {
+					pthread_mutex_unlock(&g_work_lock);
+					work_done = true;
+					continue;
+				}
+				nonceptr[1] += opt_n_threads;
+				nonceptr[1] |= thr_id;
+				// range max
+				nonceptr[0] = 0;
+				end_nonce = UINT32_MAX;
+			} else if (opt_benchmark) {
+				// randomize work
+				nonceptr[-1] += 1;
 			}
-			nonceptr[1] += opt_n_threads;
-			nonceptr[1] |= thr_id;
-			// range max
-			nonceptr[0] = 0;
-			end_nonce = UINT32_MAX;
-		} else if (opt_benchmark) {
-			// randomize work
-			nonceptr[-1] += 1;
 		}
 
 		pthread_mutex_unlock(&g_work_lock);
