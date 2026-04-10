@@ -108,8 +108,28 @@ __device__ __constant__ uint2 const keccak_rc[24] = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  3-way and 5-way XOR (PTX lop3 on sm_50+)                           */
+/*  2-way, 3-way and 5-way XOR (PTX lop3 on sm_50+)                   */
 /* ------------------------------------------------------------------ */
+DEV_INLINE uint2 xor2(const uint2 a, const uint2 b)
+{
+#if __CUDA_ARCH__ >= 500
+    uint2 r;
+    asm("lop3.b32 %0,%2,%3,%4,0x96;\n\t"
+        "lop3.b32 %1,%5,%6,%7,0x96;"
+        : "=r"(r.x), "=r"(r.y)
+        : "r"(a.x), "r"(b.x), "r"(0),
+          "r"(a.y), "r"(b.y), "r"(0));
+    return r;
+#else
+    return make_uint2(a.x ^ b.x, a.y ^ b.y);
+#endif
+}
+
+DEV_INLINE uint2 not2(const uint2 a)
+{
+    return make_uint2(~a.x, ~a.y);
+}
+
 DEV_INLINE uint2 xor3(const uint2 a, const uint2 b, const uint2 c)
 {
 #if __CUDA_ARCH__ >= 500
@@ -121,7 +141,7 @@ DEV_INLINE uint2 xor3(const uint2 a, const uint2 b, const uint2 c)
           "r"(a.y), "r"(b.y), "r"(c.y));
     return r;
 #else
-    return a ^ b ^ c;
+    return xor2(xor2(a, b), c);
 #endif
 }
 
@@ -143,7 +163,7 @@ DEV_INLINE uint2 chi(const uint2 a, const uint2 b, const uint2 c)
           "r"(a.y), "r"(b.y), "r"(c.y));
     return r;
 #else
-    return a ^ (~b & c);
+    return xor2(a, make_uint2((~b.x & c.x), (~b.y & c.y)));
 #endif
 }
 
@@ -171,19 +191,30 @@ DEV_INLINE void keccak_f1600_init(uint2* state)
     t[4] = s[4];
 
 #define ETC_THETA_STEP(dst_lo, dst_hi, src_a, src_b) \
-    u = t[dst_lo] ^ ROL2(t[dst_hi], 1); \
-    s[src_a] ^= u; s[src_b] ^= u;
+    u = xor2(t[dst_lo], ROL2(t[dst_hi], 1)); \
+    s[src_a].x ^= u.x; s[src_a].y ^= u.y; \
+    s[src_b].x ^= u.x; s[src_b].y ^= u.y;
 
-    u = t[4] ^ ROL2(t[1], 1);
-    s[0]^=u; s[5]^=u; s[10]^=u; s[15]^=u; s[20]^=u;
-    u = t[0] ^ ROL2(t[2], 1);
-    s[1]^=u; s[6]^=u; s[11]^=u; s[16]^=u; s[21]^=u;
-    u = t[1] ^ ROL2(t[3], 1);
-    s[2]^=u; s[7]^=u; s[12]^=u; s[17]^=u; s[22]^=u;
-    u = t[2] ^ ROL2(t[4], 1);
-    s[3]^=u; s[8]^=u; s[13]^=u; s[18]^=u; s[23]^=u;
-    u = t[3] ^ ROL2(t[0], 1);
-    s[4]^=u; s[9]^=u; s[14]^=u; s[19]^=u; s[24]^=u;
+    u = xor2(t[4], ROL2(t[1], 1));
+    s[0].x ^= u.x; s[0].y ^= u.y; s[5].x ^= u.x; s[5].y ^= u.y;
+    s[10].x ^= u.x; s[10].y ^= u.y; s[15].x ^= u.x; s[15].y ^= u.y;
+    s[20].x ^= u.x; s[20].y ^= u.y;
+    u = xor2(t[0], ROL2(t[2], 1));
+    s[1].x ^= u.x; s[1].y ^= u.y; s[6].x ^= u.x; s[6].y ^= u.y;
+    s[11].x ^= u.x; s[11].y ^= u.y; s[16].x ^= u.x; s[16].y ^= u.y;
+    s[21].x ^= u.x; s[21].y ^= u.y;
+    u = xor2(t[1], ROL2(t[3], 1));
+    s[2].x ^= u.x; s[2].y ^= u.y; s[7].x ^= u.x; s[7].y ^= u.y;
+    s[12].x ^= u.x; s[12].y ^= u.y; s[17].x ^= u.x; s[17].y ^= u.y;
+    s[22].x ^= u.x; s[22].y ^= u.y;
+    u = xor2(t[2], ROL2(t[4], 1));
+    s[3].x ^= u.x; s[3].y ^= u.y; s[8].x ^= u.x; s[8].y ^= u.y;
+    s[13].x ^= u.x; s[13].y ^= u.y; s[18].x ^= u.x; s[18].y ^= u.y;
+    s[23].x ^= u.x; s[23].y ^= u.y;
+    u = xor2(t[3], ROL2(t[0], 1));
+    s[4].x ^= u.x; s[4].y ^= u.y; s[9].x ^= u.x; s[9].y ^= u.y;
+    s[14].x ^= u.x; s[14].y ^= u.y; s[19].x ^= u.x; s[19].y ^= u.y;
+    s[24].x ^= u.x; s[24].y ^= u.y;
 
     /* rho-pi */
     u = s[1];
@@ -206,7 +237,7 @@ DEV_INLINE void keccak_f1600_init(uint2* state)
     s[(base)+4]=chi(s[(base)+4],u,v);
 
     ETC_CHI5(0) ETC_CHI5(5) ETC_CHI5(10) ETC_CHI5(15) ETC_CHI5(20)
-    s[0] ^= keccak_rc[0];
+    s[0].x ^= keccak_rc[0].x; s[0].y ^= keccak_rc[0].y;
 
     for (int i = 1; i < 23; i++) {
         t[0]=xor5(s[0],s[5],s[10],s[15],s[20]);
@@ -214,11 +245,26 @@ DEV_INLINE void keccak_f1600_init(uint2* state)
         t[2]=xor5(s[2],s[7],s[12],s[17],s[22]);
         t[3]=xor5(s[3],s[8],s[13],s[18],s[23]);
         t[4]=xor5(s[4],s[9],s[14],s[19],s[24]);
-        u=t[4]^ROL2(t[1],1); s[0]^=u;s[5]^=u;s[10]^=u;s[15]^=u;s[20]^=u;
-        u=t[0]^ROL2(t[2],1); s[1]^=u;s[6]^=u;s[11]^=u;s[16]^=u;s[21]^=u;
-        u=t[1]^ROL2(t[3],1); s[2]^=u;s[7]^=u;s[12]^=u;s[17]^=u;s[22]^=u;
-        u=t[2]^ROL2(t[4],1); s[3]^=u;s[8]^=u;s[13]^=u;s[18]^=u;s[23]^=u;
-        u=t[3]^ROL2(t[0],1); s[4]^=u;s[9]^=u;s[14]^=u;s[19]^=u;s[24]^=u;
+        u=xor2(t[4],ROL2(t[1],1));
+        s[0].x ^= u.x; s[0].y ^= u.y; s[5].x ^= u.x; s[5].y ^= u.y;
+        s[10].x ^= u.x; s[10].y ^= u.y; s[15].x ^= u.x; s[15].y ^= u.y;
+        s[20].x ^= u.x; s[20].y ^= u.y;
+        u=xor2(t[0],ROL2(t[2],1));
+        s[1].x ^= u.x; s[1].y ^= u.y; s[6].x ^= u.x; s[6].y ^= u.y;
+        s[11].x ^= u.x; s[11].y ^= u.y; s[16].x ^= u.x; s[16].y ^= u.y;
+        s[21].x ^= u.x; s[21].y ^= u.y;
+        u=xor2(t[1],ROL2(t[3],1));
+        s[2].x ^= u.x; s[2].y ^= u.y; s[7].x ^= u.x; s[7].y ^= u.y;
+        s[12].x ^= u.x; s[12].y ^= u.y; s[17].x ^= u.x; s[17].y ^= u.y;
+        s[22].x ^= u.x; s[22].y ^= u.y;
+        u=xor2(t[2],ROL2(t[4],1));
+        s[3].x ^= u.x; s[3].y ^= u.y; s[8].x ^= u.x; s[8].y ^= u.y;
+        s[13].x ^= u.x; s[13].y ^= u.y; s[18].x ^= u.x; s[18].y ^= u.y;
+        s[23].x ^= u.x; s[23].y ^= u.y;
+        u=xor2(t[3],ROL2(t[0],1));
+        s[4].x ^= u.x; s[4].y ^= u.y; s[9].x ^= u.x; s[9].y ^= u.y;
+        s[14].x ^= u.x; s[14].y ^= u.y; s[19].x ^= u.x; s[19].y ^= u.y;
+        s[24].x ^= u.x; s[24].y ^= u.y;
         u=s[1];
         s[1]=ROL2(s[6],44); s[6]=ROL2(s[9],20); s[9]=ROL2(s[22],61);
         s[22]=ROL2(s[14],39); s[14]=ROL2(s[20],18); s[20]=ROL2(s[2],62);
@@ -229,7 +275,7 @@ DEV_INLINE void keccak_f1600_init(uint2* state)
         s[3]=ROL2(s[18],21); s[18]=ROL2(s[17],15); s[17]=ROL2(s[11],10);
         s[11]=ROL2(s[7],6); s[7]=ROL2(s[10],3); s[10]=ROL2(u,1);
         ETC_CHI5(0) ETC_CHI5(5) ETC_CHI5(10) ETC_CHI5(15) ETC_CHI5(20)
-        s[0] ^= keccak_rc[i];
+        s[0].x ^= keccak_rc[i].x; s[0].y ^= keccak_rc[i].y;
     }
     /* partial final theta+rho-pi before the DAG loop */
     t[0]=xor5(s[0],s[5],s[10],s[15],s[20]);
@@ -237,11 +283,11 @@ DEV_INLINE void keccak_f1600_init(uint2* state)
     t[2]=xor5(s[2],s[7],s[12],s[17],s[22]);
     t[3]=xor5(s[3],s[8],s[13],s[18],s[23]);
     t[4]=xor5(s[4],s[9],s[14],s[19],s[24]);
-    u=t[4]^ROL2(t[1],1); s[0]^=u; s[10]^=u;
-    u=t[0]^ROL2(t[2],1); s[6]^=u; s[16]^=u;
-    u=t[1]^ROL2(t[3],1); s[12]^=u; s[22]^=u;
-    u=t[2]^ROL2(t[4],1); s[3]^=u; s[18]^=u;
-    u=t[3]^ROL2(t[0],1); s[9]^=u; s[24]^=u;
+    u=xor2(t[4],ROL2(t[1],1)); s[0].x ^= u.x; s[0].y ^= u.y; s[10].x ^= u.x; s[10].y ^= u.y;
+    u=xor2(t[0],ROL2(t[2],1)); s[6].x ^= u.x; s[6].y ^= u.y; s[16].x ^= u.x; s[16].y ^= u.y;
+    u=xor2(t[1],ROL2(t[3],1)); s[12].x ^= u.x; s[12].y ^= u.y; s[22].x ^= u.x; s[22].y ^= u.y;
+    u=xor2(t[2],ROL2(t[4],1)); s[3].x ^= u.x; s[3].y ^= u.y; s[18].x ^= u.x; s[18].y ^= u.y;
+    u=xor2(t[3],ROL2(t[0],1)); s[9].x ^= u.x; s[9].y ^= u.y; s[24].x ^= u.x; s[24].y ^= u.y;
     u=s[1];
     s[1]=ROL2(s[6],44); s[6]=ROL2(s[9],20); s[9]=ROL2(s[22],61);
     s[2]=ROL2(s[12],43); s[4]=ROL2(s[24],14); s[8]=ROL2(s[16],45);
@@ -252,7 +298,7 @@ DEV_INLINE void keccak_f1600_init(uint2* state)
     s[4]=chi(s[4],u,v);
     s[5]=chi(s[5],s[6],s[7]); s[6]=chi(s[6],s[7],s[8]);
     s[7]=chi(s[7],s[8],s[9]);
-    s[0] ^= keccak_rc[23];
+    s[0].x ^= keccak_rc[23].x; s[0].y ^= keccak_rc[23].y;
 
     for (int i = 0; i < 12; i++) state[i] = s[i];
 }
@@ -276,11 +322,26 @@ DEV_INLINE uint64_t keccak_f1600_final(uint2* state)
         t[2]=xor5(s[2],s[7],s[12],s[17],s[22]);
         t[3]=xor5(s[3],s[8],s[13],s[18],s[23]);
         t[4]=xor5(s[4],s[9],s[14],s[19],s[24]);
-        u=t[4]^ROL2(t[1],1); s[0]^=u;s[5]^=u;s[10]^=u;s[15]^=u;s[20]^=u;
-        u=t[0]^ROL2(t[2],1); s[1]^=u;s[6]^=u;s[11]^=u;s[16]^=u;s[21]^=u;
-        u=t[1]^ROL2(t[3],1); s[2]^=u;s[7]^=u;s[12]^=u;s[17]^=u;s[22]^=u;
-        u=t[2]^ROL2(t[4],1); s[3]^=u;s[8]^=u;s[13]^=u;s[18]^=u;s[23]^=u;
-        u=t[3]^ROL2(t[0],1); s[4]^=u;s[9]^=u;s[14]^=u;s[19]^=u;s[24]^=u;
+        u=xor2(t[4],ROL2(t[1],1));
+        s[0].x ^= u.x; s[0].y ^= u.y; s[5].x ^= u.x; s[5].y ^= u.y;
+        s[10].x ^= u.x; s[10].y ^= u.y; s[15].x ^= u.x; s[15].y ^= u.y;
+        s[20].x ^= u.x; s[20].y ^= u.y;
+        u=xor2(t[0],ROL2(t[2],1));
+        s[1].x ^= u.x; s[1].y ^= u.y; s[6].x ^= u.x; s[6].y ^= u.y;
+        s[11].x ^= u.x; s[11].y ^= u.y; s[16].x ^= u.x; s[16].y ^= u.y;
+        s[21].x ^= u.x; s[21].y ^= u.y;
+        u=xor2(t[1],ROL2(t[3],1));
+        s[2].x ^= u.x; s[2].y ^= u.y; s[7].x ^= u.x; s[7].y ^= u.y;
+        s[12].x ^= u.x; s[12].y ^= u.y; s[17].x ^= u.x; s[17].y ^= u.y;
+        s[22].x ^= u.x; s[22].y ^= u.y;
+        u=xor2(t[2],ROL2(t[4],1));
+        s[3].x ^= u.x; s[3].y ^= u.y; s[8].x ^= u.x; s[8].y ^= u.y;
+        s[13].x ^= u.x; s[13].y ^= u.y; s[18].x ^= u.x; s[18].y ^= u.y;
+        s[23].x ^= u.x; s[23].y ^= u.y;
+        u=xor2(t[3],ROL2(t[0],1));
+        s[4].x ^= u.x; s[4].y ^= u.y; s[9].x ^= u.x; s[9].y ^= u.y;
+        s[14].x ^= u.x; s[14].y ^= u.y; s[19].x ^= u.x; s[19].y ^= u.y;
+        s[24].x ^= u.x; s[24].y ^= u.y;
         u=s[1];
         s[1]=ROL2(s[6],44); s[6]=ROL2(s[9],20); s[9]=ROL2(s[22],61);
         s[22]=ROL2(s[14],39); s[14]=ROL2(s[20],18); s[20]=ROL2(s[2],62);
@@ -291,7 +352,7 @@ DEV_INLINE uint64_t keccak_f1600_final(uint2* state)
         s[3]=ROL2(s[18],21); s[18]=ROL2(s[17],15); s[17]=ROL2(s[11],10);
         s[11]=ROL2(s[7],6); s[7]=ROL2(s[10],3); s[10]=ROL2(u,1);
         ETC_CHI5(0) ETC_CHI5(5) ETC_CHI5(10) ETC_CHI5(15) ETC_CHI5(20)
-        s[0] ^= keccak_rc[i];
+        s[0].x ^= keccak_rc[i].x; s[0].y ^= keccak_rc[i].y;
     }
     t[0]=xor5(s[0],s[5],s[10],s[15],s[20]);
     t[1]=xor5(s[1],s[6],s[11],s[16],s[21]);
@@ -301,7 +362,7 @@ DEV_INLINE uint64_t keccak_f1600_final(uint2* state)
     s[12]=xor3(s[12],t[1],ROL2(t[3],1));
     s[1]=ROL2(s[6],44); s[2]=ROL2(s[12],43);
     s[0]=chi(s[0],s[1],s[2]);
-    return devectorize(s[0] ^ keccak_rc[23]);
+    return devectorize(xor2(s[0], keccak_rc[23]));
 }
 
 /* ------------------------------------------------------------------ */
@@ -319,11 +380,26 @@ DEV_INLINE void SHA3_512(uint2* s)
         t[2]=xor5(s[2],s[7],s[12],s[17],s[22]);
         t[3]=xor5(s[3],s[8],s[13],s[18],s[23]);
         t[4]=xor5(s[4],s[9],s[14],s[19],s[24]);
-        u=t[4]^ROL2(t[1],1); s[0]^=u;s[5]^=u;s[10]^=u;s[15]^=u;s[20]^=u;
-        u=t[0]^ROL2(t[2],1); s[1]^=u;s[6]^=u;s[11]^=u;s[16]^=u;s[21]^=u;
-        u=t[1]^ROL2(t[3],1); s[2]^=u;s[7]^=u;s[12]^=u;s[17]^=u;s[22]^=u;
-        u=t[2]^ROL2(t[4],1); s[3]^=u;s[8]^=u;s[13]^=u;s[18]^=u;s[23]^=u;
-        u=t[3]^ROL2(t[0],1); s[4]^=u;s[9]^=u;s[14]^=u;s[19]^=u;s[24]^=u;
+        u=xor2(t[4],ROL2(t[1],1));
+        s[0].x ^= u.x; s[0].y ^= u.y; s[5].x ^= u.x; s[5].y ^= u.y;
+        s[10].x ^= u.x; s[10].y ^= u.y; s[15].x ^= u.x; s[15].y ^= u.y;
+        s[20].x ^= u.x; s[20].y ^= u.y;
+        u=xor2(t[0],ROL2(t[2],1));
+        s[1].x ^= u.x; s[1].y ^= u.y; s[6].x ^= u.x; s[6].y ^= u.y;
+        s[11].x ^= u.x; s[11].y ^= u.y; s[16].x ^= u.x; s[16].y ^= u.y;
+        s[21].x ^= u.x; s[21].y ^= u.y;
+        u=xor2(t[1],ROL2(t[3],1));
+        s[2].x ^= u.x; s[2].y ^= u.y; s[7].x ^= u.x; s[7].y ^= u.y;
+        s[12].x ^= u.x; s[12].y ^= u.y; s[17].x ^= u.x; s[17].y ^= u.y;
+        s[22].x ^= u.x; s[22].y ^= u.y;
+        u=xor2(t[2],ROL2(t[4],1));
+        s[3].x ^= u.x; s[3].y ^= u.y; s[8].x ^= u.x; s[8].y ^= u.y;
+        s[13].x ^= u.x; s[13].y ^= u.y; s[18].x ^= u.x; s[18].y ^= u.y;
+        s[23].x ^= u.x; s[23].y ^= u.y;
+        u=xor2(t[3],ROL2(t[0],1));
+        s[4].x ^= u.x; s[4].y ^= u.y; s[9].x ^= u.x; s[9].y ^= u.y;
+        s[14].x ^= u.x; s[14].y ^= u.y; s[19].x ^= u.x; s[19].y ^= u.y;
+        s[24].x ^= u.x; s[24].y ^= u.y;
         u=s[1];
         s[1]=ROL2(s[6],44); s[6]=ROL2(s[9],20); s[9]=ROL2(s[22],61);
         s[22]=ROL2(s[14],39); s[14]=ROL2(s[20],18); s[20]=ROL2(s[2],62);
@@ -334,18 +410,18 @@ DEV_INLINE void SHA3_512(uint2* s)
         s[3]=ROL2(s[18],21); s[18]=ROL2(s[17],15); s[17]=ROL2(s[11],10);
         s[11]=ROL2(s[7],6); s[7]=ROL2(s[10],3); s[10]=ROL2(u,1);
         ETC_CHI5(0) ETC_CHI5(5) ETC_CHI5(10) ETC_CHI5(15) ETC_CHI5(20)
-        s[0] ^= ETC_LDG(keccak_rc[i]);
+        s[0].x ^= ETC_LDG(keccak_rc[i]).x; s[0].y ^= ETC_LDG(keccak_rc[i]).y;
     }
     t[0]=xor5(s[0],s[5],s[10],s[15],s[20]);
     t[1]=xor5(s[1],s[6],s[11],s[16],s[21]);
     t[2]=xor5(s[2],s[7],s[12],s[17],s[22]);
     t[3]=xor5(s[3],s[8],s[13],s[18],s[23]);
     t[4]=xor5(s[4],s[9],s[14],s[19],s[24]);
-    u=t[4]^ROL2(t[1],1); s[0]^=u; s[10]^=u;
-    u=t[0]^ROL2(t[2],1); s[6]^=u; s[16]^=u;
-    u=t[1]^ROL2(t[3],1); s[12]^=u; s[22]^=u;
-    u=t[2]^ROL2(t[4],1); s[3]^=u; s[18]^=u;
-    u=t[3]^ROL2(t[0],1); s[9]^=u; s[24]^=u;
+    u=xor2(t[4],ROL2(t[1],1)); s[0].x ^= u.x; s[0].y ^= u.y; s[10].x ^= u.x; s[10].y ^= u.y;
+    u=xor2(t[0],ROL2(t[2],1)); s[6].x ^= u.x; s[6].y ^= u.y; s[16].x ^= u.x; s[16].y ^= u.y;
+    u=xor2(t[1],ROL2(t[3],1)); s[12].x ^= u.x; s[12].y ^= u.y; s[22].x ^= u.x; s[22].y ^= u.y;
+    u=xor2(t[2],ROL2(t[4],1)); s[3].x ^= u.x; s[3].y ^= u.y; s[18].x ^= u.x; s[18].y ^= u.y;
+    u=xor2(t[3],ROL2(t[0],1)); s[9].x ^= u.x; s[9].y ^= u.y; s[24].x ^= u.x; s[24].y ^= u.y;
     u=s[1];
     s[1]=ROL2(s[6],44); s[6]=ROL2(s[9],20); s[9]=ROL2(s[22],61);
     s[2]=ROL2(s[12],43); s[4]=ROL2(s[24],14); s[8]=ROL2(s[16],45);
@@ -355,7 +431,7 @@ DEV_INLINE void SHA3_512(uint2* s)
     s[2]=chi(s[2],s[3],s[4]); s[3]=chi(s[3],s[4],u); s[4]=chi(s[4],u,v);
     s[5]=chi(s[5],s[6],s[7]); s[6]=chi(s[6],s[7],s[8]);
     s[7]=chi(s[7],s[8],s[9]);
-    s[0] ^= ETC_LDG(keccak_rc[23]);
+    s[0].x ^= ETC_LDG(keccak_rc[23]).x; s[0].y ^= ETC_LDG(keccak_rc[23]).y;
 }
 
 #undef ETC_CHI5
