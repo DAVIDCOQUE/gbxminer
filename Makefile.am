@@ -65,6 +65,13 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  sph/ripemd.c sph/sph_sha2.c \
 			  lbry/lbry.cu lbry/cuda_sha256_lbry.cu lbry/cuda_sha512_lbry.cu lbry/cuda_lbry_merged.cu
 
+# Autolykos v2 (Ergo PoW, EIP-0037)
+gbxminer_SOURCES += \
+			  autolykos2/autolykos2.cpp \
+			  autolykos2/autolykos2_cuda.cu \
+			  autolykos2/prehash.cu \
+			  autolykos2/mining.cu
+
 # ETCHash (ECIP-1099 Ethereum Classic PoW)
 gbxminer_SOURCES += \
 			  etchash/etchash.cpp \
@@ -182,6 +189,15 @@ JHA/cuda_jha_compactionTest.o: JHA/cuda_jha_compactionTest.cu
 
 skein.o: skein.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
+
+autolykos2/autolykos2_cuda.o: autolykos2/autolykos2_cuda.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<
+
+autolykos2/prehash.o: autolykos2/prehash.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<
+
+autolykos2/mining.o: autolykos2/mining.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<
 
 etchash/etchash_cuda_miner_kernel.o: etchash/etchash_cuda_miner_kernel.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<

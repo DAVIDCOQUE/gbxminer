@@ -3,7 +3,7 @@
 ## Algorithms to Keep & Add (The 2026 GPU Focus)
 
 ### NeoScrypt (GoByte)
-- **Status**: Retained for Ecosystem Support
+- **Status**: Retained for Ecosystem Support ✅
 - **Characteristics**:
   - Legacy algorithm maintained specifically to support the GoByte network.
 - **Use Case**: Dedicated mining for GoByte communities.
@@ -16,7 +16,7 @@
 - **Use Case**: Primary choice for 15-minute donation windows due to rapid startup and low heat generation.
 
 ### KawPow (Ravencoin / Neurai)
-- **Status**: Standard "heavy" GPU algorithm
+- **Status**: **ADDED** ✅
 - **Characteristics**:
   - High computational intensity that generates significant heat.
   - Very ASIC-resistant.
@@ -24,18 +24,26 @@
 - **Use Case**: When ASIC resistance is prioritized over power efficiency.
 
 ### Etchash (Ethereum Classic)
-- **Status**: Direct successor to ETH mining
+- **Status**: **ADDED** ✅
 - **Characteristics**:
   - Maintains the Ethereum Classic ecosystem.
   - Requires 5+ GB VRAM for DAG files.
 - **Use Case**: Profitable operation with efficient graphics cards.
 
 ### Autolykos2 (Ergo)
-- **Status**: Very efficient for mid-range NVIDIA cards
+- **Status**: **ADDED** ✅
 - **Characteristics**:
-  - ASIC-resistant algorithm.
-  - Good balance of efficiency and profitability.
-- **Use Case**: Mid-range NVIDIA GPU mining.
+  - ASIC-resistant PoW defined in EIP-0037 (k-sum puzzle over a BLAKE2b-256
+    prehash table of N = 2^26 entries, ~2 GiB device RAM).
+  - Table rebuilt per-block (no epoch concept); rebuild takes ~1–2 s on
+    RTX 3080 class hardware.
+  - Good balance of efficiency and profitability for mid-range NVIDIA GPUs.
+- **Cannibalised from**: Autolykosminer by mhssamadani (GPL-3.0).
+- **New files**: `autolykos2/autolykos2.{h,cpp}`, `autolykos2/autolykos2_cuda.{h,cu}`,
+  `autolykos2/prehash.cu`, `autolykos2/mining.cu`, `autolykos2/definitions.h`,
+  `autolykos2/prehash.h`, `autolykos2/mining.h`, `autolykos2/reduction.h`,
+  `autolykos2/compaction.h`
+- **Use Case**: Mid-range NVIDIA GPU mining of Ergo (ERG).
 
 ### ZelHash (Flux)
 - **Status**: Equihash variant stable on Linux
@@ -83,7 +91,21 @@
 
 ## Recommended Configuration (2026)
 For maximum usability with modern NVIDIA GPUs (RTX 3000/4000 series):
-- **Primary algorithm**: Autolykos2 or ZelHash (best balance of GPU profitability vs. ASIC interference).
-- **Secondary**: KawPow (for strict ASIC-resistant opportunities).
+- **Primary algorithm**: NeoScrypt (GoByte), Autolykos2 (Ergo), or ETCHash (ETC) —
+  best balance of GPU profitability vs. ASIC interference.
+- **Secondary**: KaPow (for strict ASIC-resistant Ravencoin opportunities).
 - **Donation Operations**: kHeavyHash (for rapid, low-impact developer fee bursts).
-- **Legacy Focus**: NeoScrypt (strictly for GoByte) and Etchash (for Ethereum Classic).
+- **Legacy Focus**: NeoScrypt (strictly for GoByte).
+
+### Implementation Status
+
+| Algorithm | Coin(s) | Status |
+|---|---|---|
+| NeoScrypt | GoByte | Retained ✅ |
+| ETCHash | Ethereum Classic | **Added** ✅ |
+| KaPow | Ravencoin, Neurai | **Added** ✅ |
+| Autolykos2 | Ergo | **Added** ✅ |
+| X-series (X11–X17) | — | Removed ✅ |
+| Blake-ASIC (Decred, Penta) | — | Removed ✅ |
+| CryptoNight family | — | Removed ✅ |
+| Scrypt / Scrypt-Jane | — | Removed ✅ |

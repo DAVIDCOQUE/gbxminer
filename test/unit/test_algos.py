@@ -28,6 +28,7 @@ import pytest
 
 ALGO_NAMES = [
     "allium",
+    "autolykos2",
     "bmw",
     "dmd-gr",
     "equihash",
@@ -71,6 +72,8 @@ ALGO_COUNT = len(ALGO_NAMES) - 1
 
 ALGO_ALIASES = {
     "all":        "auto",
+    "ergo":       "autolykos2",
+    "autolykos":  "autolykos2",
     "diamond":    "dmd-gr",
     "equi":       "equihash",
     "etc":        "etchash",
@@ -165,6 +168,11 @@ class TestAlgorithms:
         )
         assert ALGO_ENUM.get("neoscrypt") is not None
 
+    def test_autolykos2_present(self):
+        """autolykos2 must be present (Ergo PoW, EIP-0037)."""
+        assert "autolykos2" in ALGO_NAMES, "autolykos2 missing from algo_names"
+        assert ALGO_ENUM.get("autolykos2") is not None
+
     def test_etchash_present(self):
         """etchash must be present (ECIP-1099 ETCHash, epoch=60000)."""
         assert "etchash" in ALGO_NAMES, "etchash is missing from algo_names"
@@ -186,7 +194,7 @@ class TestAlgorithms:
     def test_gpu_minable_algos_present(self):
         """All required GPU-minable algos must be present."""
         required = [
-            "neoscrypt", "etchash", "kapow",
+            "neoscrypt", "etchash", "kapow", "autolykos2",
             "lyra2", "lyra2v2", "lyra2v3", "lyra2z",
             "equihash", "groestl", "keccak", "quark", "qubit",
             "skein", "skein2", "sha256d",

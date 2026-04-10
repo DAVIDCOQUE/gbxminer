@@ -22,6 +22,7 @@
  */
 enum sha_algos {
 	ALGO_ALLIUM,
+	ALGO_AUTOLYKOS2,	/* Ergo PoW (EIP-0037) */
 	ALGO_BMW,
 	ALGO_DMD_GR,
 	ALGO_EQUIHASH,
@@ -60,6 +61,7 @@ extern volatile enum sha_algos opt_algo;
 
 static const char *algo_names[] = {
 	"allium",
+	"autolykos2",
 	"bmw",
 	"dmd-gr",
 	"equihash",

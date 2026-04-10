@@ -274,6 +274,7 @@ void sha256d(unsigned char *hash, const unsigned char *data, int len);
 struct work;
 
 extern int scanhash_allium(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_autolykos2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_bmw(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_equihash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_etchash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
@@ -310,6 +311,7 @@ extern int scanhash_scrypt_jane(int thr_id, struct work *work, uint32_t max_nonc
 void algo_free_all(int thr_id);
 
 extern void free_allium(int thr_id);
+extern void free_autolykos2(int thr_id);
 extern void free_bmw(int thr_id);
 extern void free_equihash(int thr_id);
 extern void free_etchash(int thr_id);

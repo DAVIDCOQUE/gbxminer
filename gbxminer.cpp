@@ -45,6 +45,7 @@
 #include "algos.h"
 #include "etchash/etchash.h"
 #include "kapow/kapow.h"
+#include "autolykos2/autolykos2.h"
 #include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
 
@@ -241,6 +242,7 @@ Usage: " PROGRAM_NAME " [OPTIONS]\n\
 Options:\n\
   -a, --algo=ALGO       specify the hash algorithm to use\n\
 			allium      Garlic double lyra2\n\
+			autolykos2  Ergo PoW (EIP-0037, k-sum BLAKE2b)\n\
 			bmw         BMW 256\n\
 			equihash    Zcash Equihash\n\
 			etchash     Ethereum Classic (ECIP-1099, epoch=60000)\n\
@@ -549,7 +551,8 @@ void format_hashrate(double hashrate, char *output)
 {
 	if (opt_algo == ALGO_EQUIHASH)
 		format_hashrate_unit(hashrate, output, "Sol/s");
-	else if (opt_algo == ALGO_ETCHASH || opt_algo == ALGO_KAPOW)
+	else if (opt_algo == ALGO_ETCHASH || opt_algo == ALGO_KAPOW
+		|| opt_algo == ALGO_AUTOLYKOS2)
 		format_hashrate_unit(hashrate, output, "MH/s");
 	else
 		format_hashrate_unit(hashrate, output, "H/s");
@@ -664,6 +667,7 @@ static bool work_decode(const json_t *val, struct work *work)
 
 	switch (opt_algo) {
 	case ALGO_NEOSCRYPT:
+	case ALGO_AUTOLYKOS2:
 		data_size = 80;
 		adata_sz = data_size / 4;
 		break;
@@ -1552,6 +1556,11 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		case ALGO_EQUIHASH:
 			equi_work_set_target(work, sctx->job.diff / opt_difficulty);
 			break;
+		/* Autolykos2 uses a 256-bit bound directly from the pool.
+		 * No scaling needed — the GPU kernel compares raw bytes.  */
+		case ALGO_AUTOLYKOS2:
+			work_set_target(work, sctx->job.diff / opt_difficulty);
+			break;
 		/* ETCHash/KaPow targets are full 256-bit boundaries supplied
 		 * by the pool; pass through without scaling.               */
 		case ALGO_ETCHASH:
@@ -2015,6 +2024,7 @@ static void *miner_thread(void *userdata)
 			case ALGO_WHIRLPOOL:
 				minmax = 0x400000;
 				break;
+			case ALGO_AUTOLYKOS2:
 			case ALGO_LYRA2:
 			case ALGO_LYRA2Z:
 			case ALGO_NEOSCRYPT:
@@ -2079,6 +2089,9 @@ static void *miner_thread(void *userdata)
 
 		case ALGO_ALLIUM:
 			rc = scanhash_allium(thr_id, &work, max_nonce, &hashes_done);
+			break;
+		case ALGO_AUTOLYKOS2:
+			rc = scanhash_autolykos2(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_BMW:
 			rc = scanhash_bmw(thr_id, &work, max_nonce, &hashes_done);

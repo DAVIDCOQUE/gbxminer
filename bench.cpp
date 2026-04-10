@@ -56,6 +56,7 @@ void algo_free_all(int thr_id)
 {
 	// only initialized algos will be freed
 	free_allium(thr_id);
+	free_autolykos2(thr_id);
 	free_bmw(thr_id);
 	free_equihash(thr_id);
 	free_etchash(thr_id);
