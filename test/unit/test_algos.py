@@ -14,7 +14,7 @@ Removed (ASIC-dominated or dead):
 
 Added (GPU-minable):
   - etchash  -- Ethereum Classic ETCHash (ECIP-1099, epoch=60 000 blocks)
-  - kapow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
+  - kawpow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
 
 These lists MUST be kept in sync with algos.h.
 """
@@ -40,7 +40,7 @@ ALGO_NAMES = [
     "keccakc",
     "jackpot",
     "jha",
-    "kapow",
+    "kawpow",
     "lbry",
     "luffa",
     "lyra2",
@@ -84,8 +84,8 @@ ALGO_ALIASES = {
     "bitcoin":    "sha256d",
     "sha256":     "sha256d",
     "whirl":      "whirlpool",
-    "ravencoin":  "kapow",
-    "rvn":        "kapow",
+    "ravencoin":  "kawpow",
+    "rvn":        "kawpow",
 }
 
 # ---------------------------------------------------------------------------
@@ -178,10 +178,10 @@ class TestAlgorithms:
         assert "etchash" in ALGO_NAMES, "etchash is missing from algo_names"
         assert ALGO_ENUM.get("etchash") is not None
 
-    def test_kapow_present(self):
-        """kapow must be present (Ravencoin ProgPoW, epoch=7500, period=3)."""
-        assert "kapow" in ALGO_NAMES, "kapow is missing from algo_names"
-        assert ALGO_ENUM.get("kapow") is not None
+    def test_kawpow_present(self):
+        """kawpow must be present (Ravencoin ProgPoW, epoch=7500, period=3)."""
+        assert "kawpow" in ALGO_NAMES, "kawpow is missing from algo_names"
+        assert ALGO_ENUM.get("kawpow") is not None
 
     @pytest.mark.parametrize("algo", REMOVED_ALGOS)
     def test_removed_algos_absent(self, algo):
@@ -194,7 +194,7 @@ class TestAlgorithms:
     def test_gpu_minable_algos_present(self):
         """All required GPU-minable algos must be present."""
         required = [
-            "neoscrypt", "etchash", "kapow", "autolykos2",
+            "neoscrypt", "etchash", "kawpow", "autolykos2",
             "lyra2", "lyra2v2", "lyra2v3", "lyra2z",
             "equihash", "groestl", "keccak", "quark", "qubit",
             "skein", "skein2", "sha256d",

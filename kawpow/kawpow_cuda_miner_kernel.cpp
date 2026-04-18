@@ -1,5 +1,5 @@
 /**
- * kapow_cuda_miner_kernel.cpp
+ * kawpow_cuda_miner_kernel.cpp
  *
  * KaPow (Ravencoin ProgPoW) kernel management using NVRTC.
  *
@@ -25,8 +25,8 @@
 /* C++ STL headers MUST precede miner.h (which defines min/max macros
  * that break C++ template parsing). ProgPow.h uses std::string and
  * std::stringstream extensively.                                   */
-#include "kapow/kapow_cuda_miner_kernel.h"
-#include "kapow/ProgPow.h"
+#include "kawpow/kawpow_cuda_miner_kernel.h"
+#include "kawpow/ProgPow.h"
 
 #include <map>
 #include <string>
@@ -66,7 +66,7 @@ static std::map<uint64_t, CUmodule> s_module_cache;
 /*  compiled module across multiple launches.                           */
 /* ------------------------------------------------------------------ */
 
-static std::string kapow_build_kernel_source(uint64_t period)
+static std::string kawpow_build_kernel_source(uint64_t period)
 {
     std::string inner = ProgPow::getKern(period, ProgPow::KERNEL_CUDA);
 
@@ -76,11 +76,11 @@ static std::string kapow_build_kernel_source(uint64_t period)
     std::string src;
     src += inner;
     src += R"(
-#define KAPOW_MAX_RESULTS 4U
-#define KAPOW_LANES       )" + std::to_string(PROGPOW_LANES) + R"(
+#define KAWPOW_MAX_RESULTS 4U
+#define KAWPOW_LANES       )" + std::to_string(PROGPOW_LANES) + R"(
 
-struct KapowResult { unsigned gid; unsigned mix[8]; unsigned pad[7]; };
-struct KapowResults { KapowResult result[KAPOW_MAX_RESULTS]; unsigned count; };
+struct KawpowResult { unsigned gid; unsigned mix[8]; unsigned pad[7]; };
+struct KawpowResults { KawpowResult result[KAWPOW_MAX_RESULTS]; unsigned count; };
 
 // FNV1a
 __device__ __forceinline__ unsigned fnv1a(unsigned h, unsigned d)
@@ -97,16 +97,16 @@ __device__ unsigned keccak_f800_progpow(
     return 0;
 }
 
-extern "C" __global__ void kapow_search(
+extern "C" __global__ void kawpow_search(
     const dag_t* __restrict__ g_dag,
     const uint32_t            dag_size,
     const uint32_t            header[8],
     const uint64_t            target,
     const uint64_t            start_nonce,
-    volatile KapowResults*    g_output)
+    volatile KawpowResults*    g_output)
 {
     const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint32_t lane_id = threadIdx.x & (KAPOW_LANES - 1);
+    const uint32_t lane_id = threadIdx.x & (KAWPOW_LANES - 1);
     const uint64_t nonce = start_nonce + gid;
 
     // Build c_dag from L1 cache
@@ -149,7 +149,7 @@ extern "C" __global__ void kapow_search(
     if ((uint64_t)result > target) return;
 
     uint32_t index = atomicInc((uint32_t*)&g_output->count, 0xffffffffu);
-    if (index >= KAPOW_MAX_RESULTS) return;
+    if (index >= KAWPOW_MAX_RESULTS) return;
     g_output->result[index].gid = gid;
     #pragma unroll
     for (int i = 0; i < 8; i++) g_output->result[index].mix[i] = mix_hash[i];
@@ -159,10 +159,10 @@ extern "C" __global__ void kapow_search(
 }
 
 /* ------------------------------------------------------------------ */
-/*  kapow_compile_kernel                                                */
+/*  kawpow_compile_kernel                                                */
 /* ------------------------------------------------------------------ */
 
-bool kapow_compile_kernel(uint64_t period, CUmodule* mod_out)
+bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
 {
     auto it = s_module_cache.find(period);
     if (it != s_module_cache.end()) {
@@ -174,11 +174,11 @@ bool kapow_compile_kernel(uint64_t period, CUmodule* mod_out)
     applog(LOG_ERR, "KaPow: NVRTC not available — cannot JIT-compile kernel");
     return false;
 #else
-    std::string src = kapow_build_kernel_source(period);
+    std::string src = kawpow_build_kernel_source(period);
 
     nvrtcProgram prog;
     NVRTC_SAFE_CALL(nvrtcCreateProgram(&prog, src.c_str(),
-                                       "kapow_kernel.cu",
+                                       "kawpow_kernel.cu",
                                        0, nullptr, nullptr));
 
     const char* opts[] = {
@@ -223,18 +223,18 @@ bool kapow_compile_kernel(uint64_t period, CUmodule* mod_out)
 }
 
 /* ------------------------------------------------------------------ */
-/*  kapow_run_search                                                    */
+/*  kawpow_run_search                                                    */
 /* ------------------------------------------------------------------ */
 
-void kapow_run_search(CUmodule module, uint32_t grid_size, uint32_t block_size,
+void kawpow_run_search(CUmodule module, uint32_t grid_size, uint32_t block_size,
                       cudaStream_t stream,
-                      volatile KapowSearch_results* g_output,
+                      volatile KawpowSearch_results* g_output,
                       uint64_t start_nonce,
                       etc_hash128_t* dag, uint32_t dag_size,
                       const uint32_t header[8], uint64_t target)
 {
     CUfunction func;
-    KAPOW_CU_SAFE_CALL(cuModuleGetFunction(&func, module, "kapow_search"));
+    KAWPOW_CU_SAFE_CALL(cuModuleGetFunction(&func, module, "kawpow_search"));
 
     /* Zero result counter. */
     cudaMemset((void*)&g_output->count, 0, sizeof(uint32_t));
@@ -248,7 +248,7 @@ void kapow_run_search(CUmodule module, uint32_t grid_size, uint32_t block_size,
         (void*)&g_output
     };
 
-    KAPOW_CU_SAFE_CALL(cuLaunchKernel(
+    KAWPOW_CU_SAFE_CALL(cuLaunchKernel(
         func,
         grid_size,  1, 1,
         block_size, 1, 1,
@@ -256,14 +256,14 @@ void kapow_run_search(CUmodule module, uint32_t grid_size, uint32_t block_size,
         (CUstream)stream,
         args, nullptr));
 
-    KAPOW_CUDA_SAFE_CALL(cudaGetLastError());
+    KAWPOW_CUDA_SAFE_CALL(cudaGetLastError());
 }
 
 /* ------------------------------------------------------------------ */
-/*  kapow_free_modules                                                  */
+/*  kawpow_free_modules                                                  */
 /* ------------------------------------------------------------------ */
 
-void kapow_free_modules(void)
+void kawpow_free_modules(void)
 {
     for (auto& kv : s_module_cache)
         cuModuleUnload(kv.second);

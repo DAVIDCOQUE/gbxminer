@@ -68,7 +68,7 @@ void algo_free_all(int thr_id)
 #endif
 	free_jackpot(thr_id);
 	free_jha(thr_id);
-	free_kapow(thr_id);
+	free_kawpow(thr_id);
 	free_lbry(thr_id);
 	free_luffa(thr_id);
 	free_lyra2(thr_id);

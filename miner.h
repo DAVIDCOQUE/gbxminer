@@ -284,7 +284,7 @@ extern int scanhash_groestlcoin(int thr_id, struct work* work, uint32_t max_nonc
 extern int scanhash_heavy(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done, uint32_t maxvote, int blocklen);
 extern int scanhash_jha(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_jackpot(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
-extern int scanhash_kapow(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_kawpow(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_lbry(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_luffa(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_lyra2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
@@ -321,7 +321,7 @@ extern void free_groestlcoin(int thr_id);
 extern void free_heavy(int thr_id);
 extern void free_jackpot(int thr_id);
 extern void free_jha(int thr_id);
-extern void free_kapow(int thr_id);
+extern void free_kawpow(int thr_id);
 extern void free_lbry(int thr_id);
 extern void free_luffa(int thr_id);
 extern void free_lyra2(int thr_id);

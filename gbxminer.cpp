@@ -44,7 +44,7 @@
 #include "miner.h"
 #include "algos.h"
 #include "etchash/etchash.h"
-#include "kapow/kapow.h"
+#include "kawpow/kawpow.h"
 #include "autolykos2/autolykos2.h"
 #include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
@@ -255,7 +255,7 @@ Options:\n\
 "			jackpot     JHA v8\n\
 			keccak      Deprecated Keccak-256\n\
 			keccakc     Keccak-256 (CreativeCoin)\n\
-			kapow       Ravencoin ProgPoW (epoch=7500, period=3)\n\
+			kawpow       Ravencoin ProgPoW (epoch=7500, period=3)\n\
 			lbry        LBRY Credits (Sha/Ripemd)\n\
 			luffa       Joincoin\n\
 			lyra2       CryptoCoin\n\
@@ -551,7 +551,7 @@ void format_hashrate(double hashrate, char *output)
 {
 	if (opt_algo == ALGO_EQUIHASH)
 		format_hashrate_unit(hashrate, output, "Sol/s");
-	else if (opt_algo == ALGO_ETCHASH || opt_algo == ALGO_KAPOW
+	else if (opt_algo == ALGO_ETCHASH || opt_algo == ALGO_KAWPOW
 		|| opt_algo == ALGO_AUTOLYKOS2)
 		format_hashrate_unit(hashrate, output, "MH/s");
 	else
@@ -674,7 +674,7 @@ static bool work_decode(const json_t *val, struct work *work)
 	/* ETCHash and KaPow use 32-byte header hash; the stratum layer
 	 * supplies epoch/block-height separately via work->height.    */
 	case ALGO_ETCHASH:
-	case ALGO_KAPOW:
+	case ALGO_KAWPOW:
 		data_size = 32;
 		adata_sz = data_size / 4;
 		break;
@@ -798,16 +798,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	bool stale_work = false;
 	int idnonce = work->submit_nonce_id;
 
-	if (pool->type & POOL_STRATUM && stratum.rpc2) {
-		struct work submit_work;
-		memcpy(&submit_work, work, sizeof(struct work));
-		if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
-			if (rpc2_stratum_submit(pool, &submit_work))
-				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
-			stratum.job.shares_count++;
-		}
-		return true;
-	}
+	/* rpc2 submit path removed */
 
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
@@ -1397,8 +1388,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	uchar merkle_root[64] = { 0 };
 	int i;
 
-	if (sctx->rpc2)
-		return rpc2_stratum_gen_work(sctx, work);
+	/* rpc2 path removed: CryptoNight/WildKeccak algos no longer supported */
 
 	if (!sctx->job.job_id) {
 		// applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
@@ -1564,7 +1554,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		/* ETCHash/KaPow targets are full 256-bit boundaries supplied
 		 * by the pool; pass through without scaling.               */
 		case ALGO_ETCHASH:
-		case ALGO_KAPOW:
+		case ALGO_KAWPOW:
 			work_set_target(work, sctx->job.diff / opt_difficulty);
 			break;
 		default:
@@ -1872,7 +1862,7 @@ static void *miner_thread(void *userdata)
 			gpulog(LOG_DEBUG, thr_id, "no data");
 			continue;
 		}
-	
+
 
 		/* conditional mining */
 		if (!wanna_mine(thr_id))
@@ -2033,7 +2023,7 @@ static void *miner_thread(void *userdata)
 			/* DAG-based algos: each kernel launch covers many nonces
 			 * but DAG setup time dominates; keep window small.      */
 			case ALGO_ETCHASH:
-			case ALGO_KAPOW:
+			case ALGO_KAWPOW:
 				minmax = 0x1000;
 				break;
 			}
@@ -2133,8 +2123,8 @@ static void *miner_thread(void *userdata)
 		case ALGO_JHA:
 			rc = scanhash_jha(thr_id, &work, max_nonce, &hashes_done);
 			break;
-		case ALGO_KAPOW:
-			rc = scanhash_kapow(thr_id, &work, max_nonce, &hashes_done);
+		case ALGO_KAWPOW:
+			rc = scanhash_kawpow(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_LBRY:
 			rc = scanhash_lbry(thr_id, &work, max_nonce, &hashes_done);

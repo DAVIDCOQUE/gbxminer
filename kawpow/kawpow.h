@@ -1,7 +1,7 @@
-#ifndef KAPOW_H
-#define KAPOW_H
+#ifndef KAWPOW_H
+#define KAWPOW_H
 /**
- * kapow.h
+ * kawpow.h
  *
  * CPU-side interface for the KaPow (Ravencoin ProgPoW) mining algorithm.
  *
@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 /**
- * scanhash_kapow - GPU hash loop for KaPow.
+ * scanhash_kawpow - GPU hash loop for KaPow.
  *
  * @param thr_id      GPU thread index.
  * @param work        Current work package (work->height = block height).
@@ -37,14 +37,14 @@ extern "C" {
  *
  * Returns 1 on solution found, 0 on exhaustion, -1 on error.
  */
-int scanhash_kapow(int thr_id, struct work* work,
+int scanhash_kawpow(int thr_id, struct work* work,
                    uint32_t max_nonce, unsigned long* hashes_done);
 
 /** Release all device memory and compiled kernel modules for this thread. */
-void free_kapow(int thr_id);
+void free_kawpow(int thr_id);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* KAPOW_H */
+#endif /* KAWPOW_H */

@@ -45,7 +45,7 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  Algo256/cuda_blake256.cu Algo256/cuda_groestl256.cu \
 			  Algo256/cuda_keccak256_sm3.cu Algo256/cuda_keccak256.cu Algo256/cuda_skein256.cu \
 			  Algo256/blake256.cu Algo256/keccak256.cu \
-			  Algo256/blake2s.cu sph/blake2s.c \
+			  Algo256/blake2s.cu sph/blake2s.c sph/blake2b.c \
 			  Algo256/bmw.cu Algo256/cuda_bmw.cu \
 			  blake2b.cu \
 			  equi/equi-stratum.cpp \
@@ -70,18 +70,24 @@ gbxminer_SOURCES += \
 			  autolykos2/autolykos2.cpp \
 			  autolykos2/autolykos2_cuda.cu \
 			  autolykos2/prehash.cu \
-			  autolykos2/mining.cu
+			  autolykos2/mining.cu \
+			  autolykos2/reduction.cu \
+			  autolykos2/compaction.cu
 
 # ETCHash (ECIP-1099 Ethereum Classic PoW)
 gbxminer_SOURCES += \
 			  etchash/etchash.cpp \
 			  etchash/etchash_cuda_miner_kernel.cu
 
+# kawpow.cpp always compiled — provides free_kawpow() stub
+# when NVRTC is absent.  ProgPow.cpp and kawpow_cuda_miner_kernel.cpp
+# require NVRTC for JIT compilation.
+gbxminer_SOURCES += kawpow/kawpow.cpp
+
 if HAVE_NVRTC
 gbxminer_SOURCES += \
-			  kapow/ProgPow.cpp \
-			  kapow/kapow.cpp \
-			  kapow/kapow_cuda_miner_kernel.cpp
+			  kawpow/ProgPow.cpp \
+			  kawpow/kawpow_cuda_miner_kernel.cpp
 endif
 
 if !ARCH_ARM64
@@ -189,6 +195,12 @@ JHA/cuda_jha_compactionTest.o: JHA/cuda_jha_compactionTest.cu
 
 skein.o: skein.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=64 -o $@ -c $<
+
+autolykos2/reduction.o: autolykos2/reduction.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<
+
+autolykos2/compaction.o: autolykos2/compaction.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<
 
 autolykos2/autolykos2_cuda.o: autolykos2/autolykos2_cuda.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<

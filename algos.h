@@ -17,7 +17,7 @@
  *
  * Added:
  *   - ALGO_ETCHASH — Ethereum Classic PoW (ECIP-1099, epoch = 60 000 blocks)
- *   - ALGO_KAPOW   — Ravencoin ProgPoW variant (epoch = 7 500 blocks,
+ *   - ALGO_KAWPOW   — Ravencoin ProgPoW variant (epoch = 7 500 blocks,
  *                    program period = 3 blocks)
  */
 enum sha_algos {
@@ -34,7 +34,7 @@ enum sha_algos {
 	ALGO_KECCAKC,		/* Keccak-256 with pool factor 256 (CreativeCoin) */
 	ALGO_JACKPOT,
 	ALGO_JHA,
-	ALGO_KAPOW,		/* KaPow (Ravencoin ProgPoW)                   */
+	ALGO_KAWPOW,		/* KaPow (Ravencoin ProgPoW)                   */
 	ALGO_LBRY,
 	ALGO_LUFFA,
 	ALGO_LYRA2,
@@ -73,7 +73,7 @@ static const char *algo_names[] = {
 	"keccakc",
 	"jackpot",
 	"jha",
-	"kapow",
+	"kawpow",
 	"lbry",
 	"luffa",
 	"lyra2",
@@ -119,8 +119,8 @@ static inline int algo_to_int(char* arg)
 		else if (!strcasecmp("bitcoin",    arg)) i = ALGO_SHA256D;
 		else if (!strcasecmp("sha256",     arg)) i = ALGO_SHA256D;
 		else if (!strcasecmp("whirl",      arg)) i = ALGO_WHIRLPOOL;
-		else if (!strcasecmp("ravencoin",  arg)) i = ALGO_KAPOW;
-		else if (!strcasecmp("rvn",        arg)) i = ALGO_KAPOW;
+		else if (!strcasecmp("ravencoin",  arg)) i = ALGO_KAWPOW;
+		else if (!strcasecmp("rvn",        arg)) i = ALGO_KAWPOW;
 		else                                     i = -1;
 	}
 
