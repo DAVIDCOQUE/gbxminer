@@ -64,7 +64,6 @@ void algo_free_all(int thr_id)
 	free_etchash(thr_id);
 	free_keccak256(thr_id);
 	free_fugue256(thr_id);
-	free_groestlcoin(thr_id);
 #ifdef WITH_HEAVY_ALGO
 	free_heavy(thr_id);
 #endif
@@ -78,13 +77,8 @@ void algo_free_all(int thr_id)
 	free_lyra2v2(thr_id);
 	free_lyra2v3(thr_id);
 	free_lyra2Z(thr_id);
-	free_myriad(thr_id);
 	free_neoscrypt(thr_id);
 	free_nist5(thr_id);
-	free_quark(thr_id);
-	free_qubit(thr_id);
-	free_skeincoin(thr_id);
-	free_skein2(thr_id);
 	free_sha256d(thr_id);
 	free_sha256t(thr_id);
 	free_whirl(thr_id);
