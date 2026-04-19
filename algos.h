@@ -36,10 +36,10 @@ enum sha_algos {
 	ALGO_HEAVY,		/* Heavycoin hash                              */
 	ALGO_KECCAK,
 	ALGO_KECCAKC,		/* Keccak-256 with pool factor 256 (CreativeCoin) */
+	ALGO_KHEAVYHASH,	/* kHeavyHash (Kaspa, no DAG)                  */
 	ALGO_JACKPOT,
 	ALGO_JHA,
 	ALGO_KAWPOW,		/* KawPow (Ravencoin ProgPoW)                   */
-	ALGO_KHEAVYHASH,	/* kHeavyHash (Kaspa, no DAG)                  */
 	ALGO_LBRY,
 	ALGO_LUFFA,
 	ALGO_LYRA2,
@@ -58,6 +58,7 @@ enum sha_algos {
 	ALGO_SKEIN2,
 	ALGO_WHIRLCOIN,
 	ALGO_WHIRLPOOL,
+	ALGO_ZELHASH,		/* ZelHash / Flux (Equihash 125,4)             */
 	ALGO_AUTO,
 	ALGO_COUNT
 };
@@ -129,6 +130,12 @@ static inline int algo_to_int(char* arg)
 		else if (!strcasecmp("whirl",      arg)) i = ALGO_WHIRLPOOL;
 		else if (!strcasecmp("ravencoin",  arg)) i = ALGO_KAWPOW;
 		else if (!strcasecmp("rvn",        arg)) i = ALGO_KAWPOW;
+		else if (!strcasecmp("flux",       arg)) i = ALGO_ZELHASH;
+		else if (!strcasecmp("zel",        arg)) i = ALGO_ZELHASH;
+		else if (!strcasecmp("kaspa",      arg)) i = ALGO_KHEAVYHASH;
+		else if (!strcasecmp("kas",        arg)) i = ALGO_KHEAVYHASH;
+		else if (!strcasecmp("firo",       arg)) i = ALGO_FIROPOW;
+		else if (!strcasecmp("zcoin",      arg)) i = ALGO_FIROPOW;
 		else                                     i = -1;
 	}
 
