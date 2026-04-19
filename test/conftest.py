@@ -117,45 +117,40 @@ def multi_pool_config():
 
 @pytest.fixture
 def algorithm_names():
-    """Return the list of algorithm names from TESTS.md."""
+    """Return the list of algorithm names — must mirror algos.h algo_names[]."""
     return [
-        "blakecoin", "blake", "blake2b", "blake2s", "allium", "bmw", "bastion",
-        "c11", "cryptolight", "cryptonight", "deep", "decred", "dmd-gr",
-        "equihash", "exosis", "fresh", "fugue256", "groestl", "heavy", "hmq1725",
-        "hsr", "keccak", "keccakc", "jackpot", "jha", "lbry", "luffa", "lyra2",
-        "lyra2v2", "lyra2v3", "lyra2z", "mjollnir", "myr-gr", "neoscrypt", "nist5",
-        "penta", "phi", "phi2", "polytimos", "quark", "qubit", "scrypt",
-        "scrypt-jane", "sha256d", "sha256t", "sha256q", "sia", "sib", "skein",
-        "skein2", "skunk", "sonoa", "s3", "timetravel", "tribus", "bitcore",
-        "x11evo", "x11", "x12", "x13", "x14", "x15", "x16r", "x16s", "x17",
-        "vanilla", "veltor", "whirlcoin", "whirlpool", "whirlpoolx", "wildkeccak",
-        "zr5", "monero", "graft", "stellite", "auto", ""
+        "allium", "autolykos2", "bmw", "dmd-gr", "equihash",
+        "firopow", "etchash", "fugue256", "heavy", "keccak",
+        "kheavyhash", "jackpot", "jha", "kawpow", "lbry",
+        "luffa", "lyra2", "lyra2v2", "lyra2v3", "lyra2z",
+        "mjollnir", "neoscrypt", "nist5", "sha256d", "sha256t",
+        "whirlcoin", "whirlpool", "zelhash", "auto", "",
     ]
 
 
 @pytest.fixture
 def algorithm_aliases():
-    """Return the algorithm aliases mapping."""
+    """Return the algorithm aliases mapping — must mirror algo_to_int() in algos.h."""
     return {
-        "all": "auto",
-        "cryptonight-light": "cryptolight",
-        "cryptonight-lite": "cryptolight",
-        "flax": "c11",
-        "diamond": "dmd-gr",
-        "equi": "equihash",
-        "doom": "luffa",
-        "hmq17": "hmq1725",
-        "hshare": "hsr",
-        "lyra2re": "lyra2",
+        "all":       "auto",
+        "diamond":   "dmd-gr",
+        "equi":      "equihash",
+        "etc":       "etchash",
+        "doom":      "luffa",
+        "lyra2re":   "lyra2",
         "lyra2rev2": "lyra2v2",
         "lyra2rev3": "lyra2v3",
-        "phi1612": "phi",
-        "bitcoin": "sha256d",
-        "sha256": "sha256d",
-        "thorsriddle": "veltor",
-        "timetravel10": "bitcore",
-        "whirl": "whirlpool",
-        "ziftr": "zr5",
+        "bitcoin":   "sha256d",
+        "sha256":    "sha256d",
+        "whirl":     "whirlpool",
+        "ravencoin": "kawpow",
+        "rvn":       "kawpow",
+        "flux":      "zelhash",
+        "zel":       "zelhash",
+        "kaspa":     "kheavyhash",
+        "kas":       "kheavyhash",
+        "firo":      "firopow",
+        "zcoin":     "firopow",
     }
 
 
