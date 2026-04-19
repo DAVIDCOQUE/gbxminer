@@ -32,10 +32,8 @@ enum sha_algos {
 	ALGO_FIROPOW,		/* FiroPow (Firo ProgPoW, period=13, epoch=1300) */
 	ALGO_ETCHASH,		/* ETCHash (ECIP-1099) — Ethereum Classic     */
 	ALGO_FUGUE256,		/* Fugue256                                    */
-	ALGO_GROESTL,
 	ALGO_HEAVY,		/* Heavycoin hash                              */
 	ALGO_KECCAK,
-	ALGO_KECCAKC,		/* Keccak-256 with pool factor 256 (CreativeCoin) */
 	ALGO_KHEAVYHASH,	/* kHeavyHash (Kaspa, no DAG)                  */
 	ALGO_JACKPOT,
 	ALGO_JHA,
@@ -47,15 +45,10 @@ enum sha_algos {
 	ALGO_LYRA2v3,
 	ALGO_LYRA2Z,
 	ALGO_MJOLLNIR,		/* Hefty hash                                  */
-	ALGO_MYR_GR,
 	ALGO_NEOSCRYPT,		/* GoByte primary PoW — MUST NOT BE REMOVED    */
 	ALGO_NIST5,
-	ALGO_QUARK,
-	ALGO_QUBIT,
 	ALGO_SHA256D,
 	ALGO_SHA256T,
-	ALGO_SKEIN,
-	ALGO_SKEIN2,
 	ALGO_WHIRLCOIN,
 	ALGO_WHIRLPOOL,
 	ALGO_ZELHASH,		/* ZelHash / Flux (Equihash 125,4)             */
@@ -74,10 +67,8 @@ static const char *algo_names[] = {
 	"firopow",
 	"etchash",
 	"fugue256",
-	"groestl",
 	"heavy",
 	"keccak",
-	"keccakc",
 	"kheavyhash",
 	"jackpot",
 	"jha",
@@ -89,15 +80,10 @@ static const char *algo_names[] = {
 	"lyra2v3",
 	"lyra2z",
 	"mjollnir",
-	"myr-gr",
 	"neoscrypt",
 	"nist5",
-	"quark",
-	"qubit",
 	"sha256d",
 	"sha256t",
-	"skein",
-	"skein2",
 	"whirlcoin",
 	"whirlpool",
 	"zelhash",

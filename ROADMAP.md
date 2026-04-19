@@ -26,15 +26,14 @@ and CPU-only algorithm families.
 
 ---
 
-## v1.2.x — Current Development Branch
+## v1.2.0 — Current Release
 
-Adds kHeavyHash, ZelHash, and FiroPow.  Removes the remaining ghost
-algorithm families still compiled in the binary from v1.1.0.
+Adds kHeavyHash, ZelHash, and FiroPow.  Removes the remaining
+ASIC-dominated and ghost algorithm families.
 
-### Added in v1.2.x
+### Added in v1.2.0
 
 #### kHeavyHash (Kaspa)
-- **Status**: **ADDED** ✅
 - No DAG, no epoch.  The 64×64 matrix is derived from each block header
   on-device in microseconds via xoshiro256** PRNG.  Near-instant startup;
   ideal for donation-burst windows.
@@ -43,17 +42,14 @@ algorithm families still compiled in the binary from v1.1.0.
 - New files: `kheavyhash/`
 
 #### ZelHash (Flux)
-- **Status**: **ADDED** ✅
 - Equihash 125,4.  Reuses the existing `cuda_equi.cu` templated solver via
   CONFIG_MODE_4 (RB=5, SM=10, SSM=6, THREADS=512).  Solution is 52 bytes
   (vs 1344 for Equihash 200,9).
 - Requires ≥ 6 GB VRAM.
 - Aliases: `-a flux`, `-a zel`
-- New files: `equi/zelhash.cpp`; modified `equi/equihash.h`, `equi/equi.cpp`,
-  `equi/cuda_equi.cu`, `equi/eqcuda.hpp`
+- New files: `equi/zelhash.cpp`
 
 #### FiroPow (Firo)
-- **Status**: **ADDED** ✅
 - ProgPoW with EPOCH_LENGTH=1300 and PERIOD=13 (vs 7500/3 for KawPow).
   Shares `kawpow/ProgPow.cpp` unchanged; only the two period/epoch constants
   differ.  Requires `--with-nvrtc` at configure time.
@@ -61,16 +57,17 @@ algorithm families still compiled in the binary from v1.1.0.
 - Aliases: `-a firo`, `-a zcoin`
 - New files: `firopow/`
 
-### Removed in v1.2.x
-
-The following families were still compiled in v1.1.0 but unreachable via
-the algo enum.  They are excised in v1.2.x:
+### Removed in v1.2.0
 
 | Family | Reason |
 |---|---|
 | Groestl / Myriad-Groestl | Dead or ASIC-dominated networks |
 | Skein / Skein2 | Dead networks (Woodcoin irrelevant) |
 | Quark / Qubit / Keccakc | Ghost networks, zero viable GPU hashrate |
+
+Removed files: `groestlcoin.cpp`, `myriadgroestl.cpp`, `skein.cu`,
+`skein2.cpp`, `cuda_groestlcoin.cu`, `cuda_groestlcoin.h`,
+`cuda_myriadgroestl.cu`, `cuda_skeincoin.cu`, `quark/`, `qubit/`
 
 ---
 
@@ -91,14 +88,16 @@ the algo enum.  They are excised in v1.2.x:
 | ETCHash | Ethereum Classic | 5 GB+ | v1.1.0 ✅ |
 | KawPow | Ravencoin, Neurai | 6 GB+ | v1.1.0 ✅ |
 | Autolykos v2 | Ergo | 3 GB+ | v1.1.0 ✅ |
-| kHeavyHash | Kaspa | 1 GB | v1.2.x ✅ |
-| ZelHash | Flux | 6 GB+ | v1.2.x ✅ |
-| FiroPow | Firo | 4 GB+ | v1.2.x ✅ |
+| kHeavyHash | Kaspa | 1 GB | v1.2.0 ✅ |
+| ZelHash | Flux | 6 GB+ | v1.2.0 ✅ |
+| FiroPow | Firo | 4 GB+ | v1.2.0 ✅ |
 | X-series (X11–X17) | — | — | Removed v1.1.0 ✅ |
 | CryptoNight family | — | — | Removed v1.1.0 ✅ |
 | Scrypt / Scrypt-Jane | — | — | Removed v1.1.0 ✅ |
 | Blake-ASIC | — | — | Removed v1.1.0 ✅ |
-| Groestl / Skein / Quark | — | — | Removed v1.2.x ✅ |
+| Groestl / Myriad-Groestl | — | — | Removed v1.2.0 ✅ |
+| Skein / Skein2 | — | — | Removed v1.2.0 ✅ |
+| Quark / Qubit / Keccakc | — | — | Removed v1.2.0 ✅ |
 
 ---
 

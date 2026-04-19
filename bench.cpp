@@ -107,15 +107,11 @@ bool bench_algo_switch_next(int thr_id)
 	if (algo == ALGO_DMD_GR)    algo++; /* same as groestl */
 	if (algo == ALGO_HEAVY)     algo++; /* dead */
 	if (algo == ALGO_MJOLLNIR)  algo++; /* same as heavy */
-	if (algo == ALGO_KECCAKC)   algo++; /* same as keccak */
 	if (algo == ALGO_WHIRLCOIN) algo++; /* same as whirlpool */
-	if (algo == ALGO_QUARK)     algo++; /* to fix */
 	if (algo == ALGO_LBRY && CUDART_VERSION < 7000) algo++;
 
 	if (device_sm[dev_id] && device_sm[dev_id] < 300) {
 		// incompatible SM 2.1 kernels...
-		if (algo == ALGO_GROESTL)   algo++;
-		if (algo == ALGO_MYR_GR)    algo++;
 		if (algo == ALGO_NEOSCRYPT) algo++;
 	}
 
