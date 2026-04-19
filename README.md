@@ -27,20 +27,6 @@
 | SHA-256d / SHA-256t | various | `-a sha256d`, `-a sha256t` | — | — |
 | Whirlpool / Whirlcoin | Joincoin | `-a whirlpool`, `-a whirlcoin` | — | — |
 
-### Removed Algorithms
-
-The following families were removed as they are ASIC-dominated or mine dead networks:
-
-| Removed in | Family |
-|---|---|
-| v1.1.0 | X-series (X11–X17, hsr, sonoa, zr5) |
-| v1.1.0 | Blake-ASIC (decred, pentablake, vanilla) |
-| v1.1.0 | CryptoNight (monero, graft, stellite, wildkeccak, …) |
-| v1.1.0 | Scrypt / Scrypt-Jane |
-| v1.2.0 | Groestl / Myriad-Groestl |
-| v1.2.0 | Skein / Skein2 |
-| v1.2.0 | Quark / Qubit / Keccakc |
-
 ## Features
 
 - Support for all modern nVidia GPUs (GTX 900 series to RTX 5090)
