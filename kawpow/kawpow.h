@@ -3,11 +3,11 @@
 /**
  * kawpow.h
  *
- * CPU-side interface for the KaPow (Ravencoin ProgPoW) mining algorithm.
+ * CPU-side interface for the KawPow (Ravencoin ProgPoW) mining algorithm.
  *
- * KaPow protocol summary
+ * KawPow protocol summary
  * ----------------------
- * KaPow is Ravencoin's ASIC-resistant PoW, derived from ProgPoW.
+ * KawPow is Ravencoin's ASIC-resistant PoW, derived from ProgPoW.
  * Key parameters that differ from ETH ProgPoW:
  *
  *   EPOCH_LENGTH  = 7 500 blocks   (controls DAG epoch)
@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 /**
- * scanhash_kawpow - GPU hash loop for KaPow.
+ * scanhash_kawpow - GPU hash loop for KawPow.
  *
  * @param thr_id      GPU thread index.
  * @param work        Current work package (work->height = block height).

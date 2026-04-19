@@ -2,9 +2,9 @@
 /**
  * kawpow_cuda_miner_kernel.h
  *
- * KaPow (Ravencoin ProgPoW) GPU kernel interface for gbxminer.
+ * KawPow (Ravencoin ProgPoW) GPU kernel interface for gbxminer.
  *
- * KaPow is Ravencoin's PoW algorithm.  It is ProgPoW with the following
+ * KawPow is Ravencoin's PoW algorithm.  It is ProgPoW with the following
  * consensus-critical parameters (distinct from ETH ProgPoW):
  *
  *   PROGPOW_PERIOD        3          (program changes every 3 blocks)
@@ -26,7 +26,7 @@
  * ----------------
  * Runtime compilation requires libnvrtc.so (Linux) / nvrtc64_*.dll (Win).
  * The Makefile.am HAVE_NVRTC guard controls this path; without NVRTC the
- * build still succeeds but KaPow is unavailable at runtime.
+ * build still succeeds but KawPow is unavailable at runtime.
  */
 
 #include <stdint.h>
@@ -40,7 +40,7 @@
 #include "etchash/etchash_cuda_miner_kernel.h"
 
 /* ------------------------------------------------------------------ */
-/*  KaPow-specific constants                                            */
+/*  KawPow-specific constants                                            */
 /* ------------------------------------------------------------------ */
 
 #define KAWPOW_EPOCH_LENGTH    7500U

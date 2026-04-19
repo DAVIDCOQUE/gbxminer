@@ -1,7 +1,7 @@
 /**
  * kawpow_cuda_miner_kernel.cpp
  *
- * KaPow (Ravencoin ProgPoW) kernel management using NVRTC.
+ * KawPow (Ravencoin ProgPoW) kernel management using NVRTC.
  *
  * Design
  * ------
@@ -19,7 +19,7 @@
  * --------
  * If NVRTC is not available at link time (HAVE_NVRTC is not defined in
  * gbxminer-config.h) all functions return immediately with an error log.
- * The build still succeeds; KaPow simply cannot be used.
+ * The build still succeeds; KawPow simply cannot be used.
  */
 
 /* C++ STL headers MUST precede miner.h (which defines min/max macros
@@ -43,7 +43,7 @@
     do {                                                                     \
         nvrtcResult _r = (call);                                             \
         if (NVRTC_SUCCESS != _r) {                                           \
-            applog(LOG_ERR, "KaPow NVRTC error: %s", nvrtcGetErrorString(_r)); \
+            applog(LOG_ERR, "KawPow NVRTC error: %s", nvrtcGetErrorString(_r)); \
             return false;                                                    \
         }                                                                    \
     } while (0)
@@ -171,7 +171,7 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
     }
 
 #ifndef HAVE_NVRTC
-    applog(LOG_ERR, "KaPow: NVRTC not available — cannot JIT-compile kernel");
+    applog(LOG_ERR, "KawPow: NVRTC not available — cannot JIT-compile kernel");
     return false;
 #else
     std::string src = kawpow_build_kernel_source(period);
@@ -192,7 +192,7 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
         nvrtcGetProgramLogSize(prog, &log_size);
         std::string log(log_size, '\0');
         nvrtcGetProgramLog(prog, &log[0]);
-        applog(LOG_ERR, "KaPow NVRTC compile error (period %llu):\n%s",
+        applog(LOG_ERR, "KawPow NVRTC compile error (period %llu):\n%s",
                (unsigned long long)period, log.c_str());
         nvrtcDestroyProgram(&prog);
         return false;
@@ -209,14 +209,14 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
     if (cu_res != CUDA_SUCCESS) {
         const char* msg = nullptr;
         cuGetErrorString(cu_res, &msg);
-        applog(LOG_ERR, "KaPow cuModuleLoadData failed (period %llu): %s",
+        applog(LOG_ERR, "KawPow cuModuleLoadData failed (period %llu): %s",
                (unsigned long long)period, msg ? msg : "unknown");
         return false;
     }
 
     s_module_cache[period] = mod;
     *mod_out = mod;
-    applog(LOG_INFO, "KaPow: compiled kernel for period %llu",
+    applog(LOG_INFO, "KawPow: compiled kernel for period %llu",
            (unsigned long long)period);
     return true;
 #endif /* HAVE_NVRTC */

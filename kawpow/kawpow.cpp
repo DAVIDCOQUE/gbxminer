@@ -1,7 +1,7 @@
 /**
  * kawpow.cpp
  *
- * CPU-side KaPow (Ravencoin ProgPoW) integration for gbxminer.
+ * CPU-side KawPow (Ravencoin ProgPoW) integration for gbxminer.
  *
  * DAG management is shared with ETCHash (same Keccak-based structure,
  * different epoch length: 7 500 blocks vs 60 000 for ETCHash).
@@ -32,7 +32,7 @@ extern "C" {
 
 #ifdef HAVE_NVRTC
 /* ------------------------------------------------------------------ */
-/*  Full KaPow implementation (requires NVRTC for JIT compilation)     */
+/*  Full KawPow implementation (requires NVRTC for JIT compilation)     */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
@@ -196,7 +196,7 @@ static bool kawpow_prepare_dag(int thr_id, uint32_t block_height)
     if (g->epoch == (int)epoch)
         return true;
 
-    applog(LOG_INFO, "GPU #%d: KaPow epoch %u, DAG %.2f GB — generating…",
+    applog(LOG_INFO, "GPU #%d: KawPow epoch %u, DAG %.2f GB — generating…",
            dev_id, epoch, (double)dag_bytes / 1073741824.0);
 
     uint8_t seed[32];
@@ -204,7 +204,7 @@ static bool kawpow_prepare_dag(int thr_id, uint32_t block_height)
 
     uint8_t* h_light = (uint8_t*)malloc(lgt_bytes);
     if (!h_light) {
-        applog(LOG_ERR, "GPU #%d: KaPow malloc light cache failed", dev_id);
+        applog(LOG_ERR, "GPU #%d: KawPow malloc light cache failed", dev_id);
         return false;
     }
     kawpow_build_light_cache(h_light, lgt_bytes, seed);
@@ -214,7 +214,7 @@ static bool kawpow_prepare_dag(int thr_id, uint32_t block_height)
     if (g->allocated_light < lgt_bytes) {
         if (g->d_light) cudaFree(g->d_light);
         if (cudaMalloc((void**)&g->d_light, lgt_bytes) != cudaSuccess) {
-            applog(LOG_ERR, "GPU #%d: KaPow cudaMalloc light failed", dev_id);
+            applog(LOG_ERR, "GPU #%d: KawPow cudaMalloc light failed", dev_id);
             free(h_light); return false;
         }
         g->allocated_light = lgt_bytes;
@@ -222,7 +222,7 @@ static bool kawpow_prepare_dag(int thr_id, uint32_t block_height)
     if (g->allocated_dag < dag_bytes) {
         if (g->d_dag) cudaFree(g->d_dag);
         if (cudaMalloc((void**)&g->d_dag, dag_bytes) != cudaSuccess) {
-            applog(LOG_ERR, "GPU #%d: KaPow cudaMalloc DAG failed", dev_id);
+            applog(LOG_ERR, "GPU #%d: KawPow cudaMalloc DAG failed", dev_id);
             free(h_light); return false;
         }
         g->allocated_dag = dag_bytes;
@@ -230,7 +230,7 @@ static bool kawpow_prepare_dag(int thr_id, uint32_t block_height)
     if (!g->d_results) {
         if (cudaMalloc((void**)&g->d_results,
                        sizeof(KawpowSearch_results)) != cudaSuccess) {
-            applog(LOG_ERR, "GPU #%d: KaPow cudaMalloc results failed", dev_id);
+            applog(LOG_ERR, "GPU #%d: KawPow cudaMalloc results failed", dev_id);
             free(h_light); return false;
         }
     }
@@ -246,7 +246,7 @@ static bool kawpow_prepare_dag(int thr_id, uint32_t block_height)
     g->dag_size   = dag_items;
     g->light_size = lgt_items;
 
-    applog(LOG_INFO, "GPU #%d: KaPow DAG ready (epoch %u)", dev_id, epoch);
+    applog(LOG_INFO, "GPU #%d: KawPow DAG ready (epoch %u)", dev_id, epoch);
     return true;
 }
 
@@ -261,7 +261,7 @@ int scanhash_kawpow(int thr_id, struct work* work,
     KawpowGpuState* g = &s_kawpow[thr_id];
 
     if (!kawpow_prepare_dag(thr_id, work->height)) {
-        applog(LOG_ERR, "GPU #%d: KaPow DAG preparation failed", dev_id);
+        applog(LOG_ERR, "GPU #%d: KawPow DAG preparation failed", dev_id);
         return -1;
     }
 
@@ -272,7 +272,7 @@ int scanhash_kawpow(int thr_id, struct work* work,
     if (period != g->period) {
         CUmodule mod;
         if (!kawpow_compile_kernel(period, &mod)) {
-            applog(LOG_ERR, "GPU #%d: KaPow kernel compile failed (period %llu)",
+            applog(LOG_ERR, "GPU #%d: KawPow kernel compile failed (period %llu)",
                    dev_id, (unsigned long long)period);
             return -1;
         }
@@ -344,7 +344,7 @@ void free_kawpow(int thr_id)
 
 #else  /* HAVE_NVRTC not defined */
 /* ------------------------------------------------------------------ */
-/*  KaPow stubs — NVRTC not available at build time.                   */
+/*  KawPow stubs — NVRTC not available at build time.                   */
 /*  scanhash_kawpow() logs an error and returns -1.                     */
 /*  free_kawpow() is a no-op.                                           */
 /* ------------------------------------------------------------------ */
@@ -353,7 +353,7 @@ int scanhash_kawpow(int thr_id, struct work *work,
 {
     (void)thr_id; (void)work; (void)max_nonce; (void)hashes_done;
     applog(LOG_ERR,
-           "KaPow: built without NVRTC support — cannot mine KaPow. "
+           "KawPow: built without NVRTC support — cannot mine KawPow. "
            "Rebuild with --with-nvrtc to enable.");
     return -1;
 }

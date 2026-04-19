@@ -45,7 +45,7 @@
 #include "algos.h"
 #include "etchash/etchash.h"
 #include "firopow/firopow.h"
-#include "kapow/kawpow.h"
+#include "kawpow/kawpow.h"
 #include "autolykos2/autolykos2.h"
 #include "kheavyhash/kheavyhash.h"
 #include "crypto/xmr-rpc.h"
@@ -258,7 +258,7 @@ Options:\n\
 "			jackpot     JHA v8\n\
 			keccak      Deprecated Keccak-256\n\
 			keccakc     Keccak-256 (CreativeCoin)\n\
-			kapow       Ravencoin ProgPoW (epoch=7500, period=3)\n\
+			kawpow       Ravencoin ProgPoW (epoch=7500, period=3)\n\
 			lbry        LBRY Credits (Sha/Ripemd)\n\
 			luffa       Joincoin\n\
 			lyra2       CryptoCoin\n\
@@ -808,7 +808,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	int idnonce = work->submit_nonce_id;
 
 	/* rpc2 submit path removed */
-	
+
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
 		memcpy(&submit_work, work, sizeof(struct work));
@@ -1873,7 +1873,7 @@ static void *miner_thread(void *userdata)
 			gpulog(LOG_DEBUG, thr_id, "no data");
 			continue;
 		}
-	
+
 
 		/* conditional mining */
 		if (!wanna_mine(thr_id))

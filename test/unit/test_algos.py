@@ -14,7 +14,7 @@ Removed (ASIC-dominated or dead):
 
 Added (GPU-minable):
   - etchash  -- Ethereum Classic ETCHash (ECIP-1099, epoch=60 000 blocks)
-  - kapow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
+  - kawpow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
 
 These lists MUST be kept in sync with algos.h.
 """
@@ -209,9 +209,9 @@ class TestAlgorithms:
         assert "etchash" in ALGO_NAMES, "etchash is missing from algo_names"
         assert ALGO_ENUM.get("etchash") is not None
 
-    def test_kapow_present(self):
-        """kapow must be present (Ravencoin ProgPoW, epoch=7500, period=3)."""
-        assert "kawpow" in ALGO_NAMES, "kapow is missing from algo_names"
+    def test_kawpow_present(self):
+        """kawpow must be present (Ravencoin ProgPoW, epoch=7500, period=3)."""
+        assert "kawpow" in ALGO_NAMES, "kawpow is missing from algo_names"
         assert ALGO_ENUM.get("kawpow") is not None
 
     @pytest.mark.parametrize("algo", REMOVED_ALGOS)

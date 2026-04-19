@@ -7,7 +7,7 @@
  *   EPOCH_LENGTH = 1300 blocks  (controls DAG rebuild)
  *   PERIOD       = 13 blocks    (controls JIT kernel recompile)
  * All other ProgPoW parameters and the NVRTC kernel mechanism
- * are shared with KawPow via kapow/ProgPow.h and ProgPow.cpp.
+ * are shared with KawPow via kawpow/ProgPow.h and ProgPow.cpp.
  *
  * DAG management is shared with ETCHash (same Keccak-based structure,
  * different epoch length: 7 500 blocks vs 60 000 for ETCHash).
@@ -22,7 +22,7 @@
 /* C++ STL headers MUST precede miner.h (which defines min/max macros
  * that break C++ template parsing in <bits/stl_algobase.h>).     */
 #include "firopow/firopow_cuda_miner_kernel.h"
-#include "kapow/ProgPow.h"  /* shared with KawPow */
+#include "kawpow/ProgPow.h"  /* shared with KawPow */
 #include "etchash/etchash_cuda_miner_kernel.h"
 #include "firopow/firopow.h"
 

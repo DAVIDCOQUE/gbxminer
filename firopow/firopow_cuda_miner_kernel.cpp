@@ -26,7 +26,7 @@
  * that break C++ template parsing). ProgPow.h uses std::string and
  * std::stringstream extensively.                                   */
 #include "firopow/firopow_cuda_miner_kernel.h"
-#include "kapow/ProgPow.h"  /* shared with KawPow */
+#include "kawpow/ProgPow.h"  /* shared with KawPow */
 
 #include <map>
 #include <string>

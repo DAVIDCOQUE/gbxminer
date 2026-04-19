@@ -55,7 +55,7 @@ algorithm families still compiled in the binary from v1.1.0.
 #### FiroPow (Firo)
 - **Status**: **ADDED** ✅
 - ProgPoW with EPOCH_LENGTH=1300 and PERIOD=13 (vs 7500/3 for KawPow).
-  Shares `kapow/ProgPow.cpp` unchanged; only the two period/epoch constants
+  Shares `kawpow/ProgPow.cpp` unchanged; only the two period/epoch constants
   differ.  Requires `--with-nvrtc` at configure time.
 - Requires ≥ 4 GB VRAM.
 - Aliases: `-a firo`, `-a zcoin`

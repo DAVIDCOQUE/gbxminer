@@ -85,19 +85,19 @@ gbxminer_SOURCES += \
 			  etchash/etchash.cpp \
 			  etchash/etchash_cuda_miner_kernel.cu
 
-# kapow.cpp always compiled — provides free_kawpow() stub
-# when NVRTC is absent.  ProgPow.cpp and kapow_cuda_miner_kernel.cpp
+# kawpow.cpp always compiled — provides free_kawpow() stub
+# when NVRTC is absent.  ProgPow.cpp and kawpow_cuda_miner_kernel.cpp
 # require NVRTC for JIT compilation.
-gbxminer_SOURCES += kapow/kapow.cpp
+gbxminer_SOURCES += kawpow/kawpow.cpp
 
 # firopow.cpp always compiled — provides free_firopow() stub.
-# Shares kapow/ProgPow.cpp (already listed above under HAVE_NVRTC).
+# Shares kawpow/ProgPow.cpp (already listed above under HAVE_NVRTC).
 gbxminer_SOURCES += firopow/firopow.cpp
 
 if HAVE_NVRTC
 gbxminer_SOURCES += \
-			  kapow/ProgPow.cpp \
-			  kapow/kapow_cuda_miner_kernel.cpp \
+			  kawpow/ProgPow.cpp \
+			  kawpow/kawpow_cuda_miner_kernel.cpp \
 			  firopow/firopow_cuda_miner_kernel.cpp
 endif
 
