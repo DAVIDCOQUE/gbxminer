@@ -49,10 +49,18 @@ DEV_INLINE uint2 ROR8(const uint2 a)
 }
 
 /* ------------------------------------------------------------------ */
-/*  uint2 bitwise XOR operators                                         */
+/*  uint2 bitwise operators                                             */
 /*  (cuda_helper.h provided these; defined locally so this header stays */
 /*   self-contained without pulling in the whole helper.)               */
 /* ------------------------------------------------------------------ */
+static __device__ __forceinline__ uint2 operator~(uint2 a)
+{
+    return make_uint2(~a.x, ~a.y);
+}
+static __device__ __forceinline__ uint2 operator&(uint2 a, uint2 b)
+{
+    return make_uint2(a.x & b.x, a.y & b.y);
+}
 static __device__ __forceinline__ uint2 operator^(uint2 a, uint2 b)
 {
     return make_uint2(a.x ^ b.x, a.y ^ b.y);
