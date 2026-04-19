@@ -4,16 +4,42 @@
 
 ## Supported Algorithms
 
-- **NeoScrypt** (primary) - GoByte, Feathercoin
-- **Lyra2**: lyra2, lyra2v2, lyra2v3, lyra2z
-- **Quark/Qubit**: quark, qubit, nist5
-- **Groestl Family**: groestl, myr-gr
-- **Skein Family**: skein, skein2
-- **Blake Family**: decred
-- **SHA-256**: sha256d, sha256t, sha256q
-- **Scrypt**: scrypt, scrypt-jane
-- **Cryptonight**: cryptonight, cryptolight, monero, graft, stellite
-- **Other**: allium, bmw, dmd-gr, equihash, fugue256, heavy, hsr, jackpot, jha, lbry, luffa, mjollnir, pentablake, sia, sonoa, whirlcoin, whirlpool, wildkeccak, zr5, keccak, keccakc
+| Algorithm | Coin(s) | Flag | VRAM | Notes |
+|---|---|---|---|---|
+| NeoScrypt | GoByte | `-a neoscrypt` | 1 GB | **Primary — permanent** |
+| ETCHash | Ethereum Classic | `-a etchash`, `-a etc` | 5 GB+ | ECIP-1099, epoch every 60 000 blocks |
+| KawPow | Ravencoin, Neurai | `-a kawpow`, `-a rvn`, `-a ravencoin` | 6 GB+ | ProgPoW; requires `--with-nvrtc` |
+| Autolykos v2 | Ergo | `-a autolykos2` | 3 GB+ | k-sum BLAKE2b-256, no epoch |
+| kHeavyHash | Kaspa | `-a kheavyhash`, `-a kaspa`, `-a kas` | 1 GB | No DAG, matrix per block |
+| ZelHash | Flux | `-a zelhash`, `-a flux`, `-a zel` | 6 GB+ | Equihash 125,4 |
+| FiroPow | Firo | `-a firopow`, `-a firo`, `-a zcoin` | 4 GB+ | ProgPoW; requires `--with-nvrtc` |
+| Equihash | Zcash, KMD, HUSH | `-a equihash` | 1 GB+ | Equihash 200,9 |
+| Lyra2 family | various | `-a lyra2`, `-a lyra2v2`, `-a lyra2v3`, `-a lyra2z` | — | — |
+| Allium | Garlic | `-a allium` | — | — |
+| BMW | Midnight | `-a bmw` | — | — |
+| DMD-GR | Diamond | `-a dmd-gr` | — | — |
+| Fugue256 | Fuguecoin | `-a fugue256` | — | — |
+| Jackpot / JHA | Sweepcoin | `-a jackpot`, `-a jha` | — | — |
+| Keccak | Maxcoin | `-a keccak` | — | — |
+| LBRY | LBRY Credits | `-a lbry` | — | — |
+| Luffa | Joincoin | `-a luffa` | — | — |
+| NIST5 | TalkCoin | `-a nist5` | — | — |
+| SHA-256d / SHA-256t | various | `-a sha256d`, `-a sha256t` | — | — |
+| Whirlpool / Whirlcoin | Joincoin | `-a whirlpool`, `-a whirlcoin` | — | — |
+
+### Removed Algorithms
+
+The following families were removed as they are ASIC-dominated or mine dead networks:
+
+| Removed in | Family |
+|---|---|
+| v1.1.0 | X-series (X11–X17, hsr, sonoa, zr5) |
+| v1.1.0 | Blake-ASIC (decred, pentablake, vanilla) |
+| v1.1.0 | CryptoNight (monero, graft, stellite, wildkeccak, …) |
+| v1.1.0 | Scrypt / Scrypt-Jane |
+| v1.2.0 | Groestl / Myriad-Groestl |
+| v1.2.0 | Skein / Skein2 |
+| v1.2.0 | Quark / Qubit / Keccakc |
 
 ## Features
 
@@ -22,19 +48,12 @@
 - Available for Linux (x86_64) and Windows (x86_64)
 - Built-in API for monitoring and control
 - GPU overclocking and power management support
-- stratum and getblocktemplate (GBT) protocol support
-
-## Performance
-
-GBXminer is designed to be the fastest miner available on GitHub for many algorithms, with:
-- Optimized CUDA kernels
-- Support for all major GPU architectures
-- Efficient memory management
+- Stratum and getblocktemplate (GBT) protocol support
 
 ## Supported nVidia Architectures
 
 | Architecture | GPUs |
-|--------------|------|
+|---|---|
 | sm_50 | GTX 900 series |
 | sm_52 | Maxwell GM20x |
 | sm_53 | Maxwell (Tegra X1) |
@@ -53,37 +72,27 @@ GBXminer is designed to be the fastest miner available on GitHub for many algori
 ## Requirements
 
 ### Runtime Requirements
-- NVIDIA GPU: Maxwell architecture or newer.
-- NVIDIA Driver 525.60+ recommended (Required for CUDA 12 compatibility).
-- CUDA Runtime: libcudart.so.12 (Install via 'cuda-runtime-12' or full Toolkit).
-- Jansson (libjansson4) - For JSON parsing.
-- Curl (libcurl4) - For network communication.
-- OpenSSL (libcrypto.so.3) - For secure connections.
+- NVIDIA GPU: Maxwell architecture or newer
+- NVIDIA Driver 525.60+ (required for CUDA 12 compatibility)
+- CUDA Runtime: libcudart.so.12
+- Jansson (libjansson4)
+- Curl (libcurl4)
+- OpenSSL (libcrypto.so.3)
 
-### Build Requirements (for building from source)
+### Build Requirements
 - CUDA Toolkit 12.0+
 - OpenSSL Development (libssl-dev)
 - Curl Development (libcurl4-openssl-dev)
 - Jansson Development (libjansson-dev)
 - pthreads
 - GCC/G++ with C++11 support
-
+- nvrtc (required for KawPow and FiroPow only — pass `--with-nvrtc` to configure)
 
 ## Usage
 
-### Linux
+### Basic
 ```bash
 ./gbxminer -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p password
-```
-
-### Windows
-```cmd
-gbxminer.exe -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p password
-```
-
-### Benchmark Mode
-```bash
-./gbxminer --benchmark -a neoscrypt --time-limit=60
 ```
 
 ### Multiple GPUs
@@ -91,71 +100,70 @@ gbxminer.exe -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p passwo
 ./gbxminer -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p password -d 0,1,2
 ```
 
-### API for Monitoring (default port 4068)
+### Benchmark
 ```bash
-# Enable API on default port
-./gbxminer -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p password -b 127.0.0.1:4068
+./gbxminer --benchmark -a neoscrypt --time-limit=60
+```
 
-# Enable remote API access
-./gbxminer -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p password -b 0.0.0.0:4068 --api-remote
+### API Monitoring (default port 4068)
+```bash
+./gbxminer -a neoscrypt -o stratum+tcp://pool:port -u wallet.address -p password -b 127.0.0.1:4068
 ```
 
 ### Options
 ```
 General:
-  -a, --algo=ALGO       Specify algorithm (neoscrypt, x16r, x16s, quark, etc.)
+  -a, --algo=ALGO       Specify algorithm
   -o, --url=URL         Pool URL
-  -u, --user=USER      Wallet/username
-  -p, --pass=PASSWORD  Password/worker name
-  -O, --userpass=U:P   username:password pair
-  -x, --proxy=URL      Connect through proxy (http://host:port)
-  -c, --config=FILE    Load JSON configuration file
-  -B, --background     Run in background
-  -V, --version        Show version
-  -h, --help           Show help
+  -u, --user=USER       Wallet/username
+  -p, --pass=PASSWORD   Password/worker name
+  -O, --userpass=U:P    username:password pair
+  -x, --proxy=URL       Connect through proxy
+  -c, --config=FILE     Load JSON configuration file
+  -B, --background      Run in background
+  -V, --version         Show version
+  -h, --help            Show help
 
 GPU Options:
-  -d, --devices=DEV    GPU device IDs (0,1,2,...)
-  -i, --intensity=N    GPU intensity 8.0-25.0 (default: auto)
-  -t, --threads=N      Number of miner threads (default: number of GPUs)
-  -l, --launch-config  Kernel launch configuration per GPU
-  -L, --lookup-gap     Memory lookup gap for scrypt/lyra2
+  -d, --devices=DEV     GPU device IDs (0,1,2,...)
+  -i, --intensity=N     GPU intensity 8.0-25.0 (default: auto)
+  -t, --threads=N       Number of miner threads (default: number of GPUs)
+  -l, --launch-config   Kernel launch configuration per GPU
+  -L, --lookup-gap      Memory lookup gap
 
 Networking:
-  -r, --retries=N      Number of retries (default: unlimited)
-  -R, --retry-pause=N Pause between retries in seconds (default: 30)
-  -T, --timeout=N     Network timeout in seconds (default: 300)
-  -s, --scantime=N    Upper bound on time scanning work (default: 60)
-  -n, --ndevs         List CUDA devices
-  -N, --statsavg=N    Number of samples for hashrate (default: 30)
+  -r, --retries=N       Number of retries (default: unlimited)
+  -R, --retry-pause=N   Pause between retries in seconds (default: 30)
+  -T, --timeout=N       Network timeout in seconds (default: 300)
+  -s, --scantime=N      Upper bound on time scanning work (default: 60)
+  -n, --ndevs           List CUDA devices
+  -N, --statsavg=N      Number of samples for hashrate (default: 30)
 
 Monitoring:
-  -b, --api-bind=PORT  API bind address (default: 127.0.0.1:4068)
-      --api-remote     Allow remote control
-      --api-allow=IP   Allowed API clients (IP/mask)
-  -q, --quiet         Disable per-thread hashmeter output
-      --no-color       Disable colored output
+  -b, --api-bind=PORT   API bind address (default: 127.0.0.1:4068)
+      --api-remote      Allow remote control
+      --api-allow=IP    Allowed API clients (IP/mask)
+  -q, --quiet           Disable per-thread hashmeter output
+      --no-color        Disable colored output
 
 Benchmark:
-      --benchmark      Run in benchmark mode
-      --time-limit=N   Benchmark duration in seconds
+      --benchmark       Run in benchmark mode
+      --time-limit=N    Benchmark duration in seconds
 
 GPU Tuning:
-      --gpu-clock=N    Set GPU engine clock (MHz)
-      --mem-clock=N    Set GPU memory clock (MHz)
-      --plimit=W       Set power limit ( watts or %)
-      --tlimit=N       Set thermal limit (degrees C)
-      --max-temp=N     Stop mining if GPU exceeds temp
-      --led=N          Set GPU LED level (0-255)
+      --gpu-clock=N     Set GPU engine clock (MHz)
+      --mem-clock=N     Set GPU memory clock (MHz)
+      --plimit=W        Set power limit (watts or %)
+      --tlimit=N        Set thermal limit (degrees C)
+      --max-temp=N      Stop mining if GPU exceeds temp
 
 Debug:
-  -D, --debug         Enable debug output
-  -P, --protocol-dump Verbose protocol dump
+  -D, --debug           Enable debug output
+  -P, --protocol-dump   Verbose protocol dump
 ```
 
 ## Configuration File
 
-GBXminer supports JSON configuration files:
 ```json
 {
   "pools": [
@@ -167,23 +175,21 @@ GBXminer supports JSON configuration files:
     }
   ],
   "devices": [0, 1],
-  "gpu-engine": [1000, 1050],
-  "gpu-memclock": [2000, 2100],
   "api-bind": "127.0.0.1:4068"
 }
 ```
 
-Then run:
 ```bash
 ./gbxminer -c config.json
 ```
 
-## Troubleshooting
+## Release History
 
-- **No GPU detected**: Ensure NVIDIA driver is installed and `nvidia-smi` works
-- **CUDA error**: Ensure CUDA Toolkit 12.0+ is installed and accessible
-- **Compilation errors**: Ensure all build requirements are installed (see Build Requirements)
-- **API not responding**: Check firewall settings if binding to non-localhost
+| Version | Date | Summary |
+|---|---|---|
+| v1.2.0 | 2026 | Added kHeavyHash, ZelHash, FiroPow. Removed Groestl, Skein, Quark families. |
+| v1.1.0 | 2026 | Added ETCHash, KawPow, Autolykos v2. Removed X-series, CryptoNight, Scrypt, Blake-ASIC. |
+| v1.0.1 | Apr 2026 | Rebranded from ccminer to GBXminer. CUDA 12 support. |
 
 ## Donation
 
@@ -193,7 +199,6 @@ GoByte: GT6XDe4RsS8vGpqW5mU3nywkCAanZZ1bT8 (d0wn3d)
 
 ## Credits
 
-This project was built on the shoulders of giants:
 - Original CUDA project by Christian Buchner & Christian H.
 - ccminer by Tanguy Pruvot
 - Additional algos by djm34 and alexis78
