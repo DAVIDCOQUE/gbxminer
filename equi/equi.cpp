@@ -169,3 +169,52 @@ bool equi_verify(uint8_t* const hdr, uint8_t* const soln)
 	}
 	return isZero(vHash, sizeof(vHash));
 }
+
+/*
+ * zel_verify — solution verifier for ZelHash (Equihash 125,4).
+ *
+ * Identical algorithm to equi_verify() but with n=ZELWN=125, k=ZELWK=4.
+ * Kept as a separate function because WN/WK are compile-time constants in
+ * equi_verify(); extracting them as runtime parameters would require touching
+ * the equihash.cpp verifier chain shared with Zcash.
+ */
+bool zel_verify(uint8_t* const hdr, uint8_t* const soln)
+{
+    const uint32_t n = ZELWN; /* 125 */
+    const uint32_t k = ZELWK; /* 4   */
+    const uint32_t collisionBitLength  = n / (k + 1);          /* 25 */
+    const uint32_t collisionByteLength = (collisionBitLength + 7) / 8; /* 4 */
+    const uint32_t hashLength          = (k + 1) * collisionByteLength; /* 20 */
+    const uint32_t indicesPerHashOutput = 512 / n;              /* 4  */
+    const uint32_t hashOutput           = indicesPerHashOutput * n / 8; /* 62 */
+    const uint32_t equihashSolutionSize = ZEL_SOLSIZE;          /* 52 */
+    const uint32_t solnr                = ZEL_PROOFSIZE;        /* 16 */
+
+    uint32_t indices[ZEL_PROOFSIZE] = { 0 };
+    uint8_t  vHash[hashLength];
+    memset(vHash, 0, sizeof(vHash));
+
+    blake2b_state state;
+    digestInit(&state, n, k);
+#ifdef USE_LIBSODIUM
+    crypto_generichash_blake2b_update(&state, hdr, 140);
+#else
+    eq_blake2b_update(&state, hdr, 140);
+#endif
+
+    expandArray(soln, equihashSolutionSize,
+                (uint8_t*)&indices, sizeof(uint32_t) * solnr,
+                collisionBitLength + 1, 1);
+
+    for (uint32_t j = 0; j < solnr; j++) {
+        uint8_t tmpHash[hashOutput];
+        uint8_t hash[hashLength];
+        uint32_t i = be32toh(indices[j]);
+        generateHash(&state, i / indicesPerHashOutput, tmpHash, hashOutput);
+        expandArray(tmpHash + (i % indicesPerHashOutput * n / 8),
+                    n / 8, hash, hashLength, collisionBitLength, 0);
+        for (uint32_t x = 0; x < hashLength; x++)
+            vHash[x] ^= hash[x];
+    }
+    return isZero(vHash, sizeof(vHash));
+}

@@ -2129,3 +2129,7 @@ template class eq_cuda_context<CONFIG_MODE_2>;
 #ifdef CONFIG_MODE_3
 template class eq_cuda_context<CONFIG_MODE_3>;
 #endif
+#ifdef CONFIG_MODE_4
+/* ZelHash (Flux, Equihash 125,4) */
+template class eq_cuda_context<CONFIG_MODE_4>;
+#endif

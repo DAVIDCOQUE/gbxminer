@@ -134,3 +134,5 @@ public:
 // RB, SM, SSM, TPB, PACKER... but any change only here will fail..
 #define CONFIG_MODE_1	9, 1248, 12, 640, packer_cantor
 //#define CONFIG_MODE_2	8, 640, 12, 512, packer_default
+/* ZelHash (Flux, Equihash 125,4): RB=5, SM=10, SSM=6, TPB=512 */
+#define CONFIG_MODE_4	5, 10, 6, 512, packer_default

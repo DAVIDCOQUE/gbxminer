@@ -20,7 +20,7 @@
  *
  *   3. Solution if d < bound (supplied by pool).
  *
- * Unlike ETCHash/KaPow, Autolykos2 does NOT use an epoch-based DAG.
+ * Unlike ETCHash/KawPow, Autolykos2 does NOT use an epoch-based DAG.
  * The prehash table is rebuilt only when the block message or public key
  * changes (i.e. on each new block), making it effectively a per-block
  * table.  This is more memory-efficient (~2 GB) but requires a fast rebuild

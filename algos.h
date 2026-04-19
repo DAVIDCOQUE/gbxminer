@@ -17,7 +17,10 @@
  *
  * Added:
  *   - ALGO_ETCHASH — Ethereum Classic PoW (ECIP-1099, epoch = 60 000 blocks)
- *   - ALGO_KAWPOW   — Ravencoin ProgPoW variant (epoch = 7 500 blocks,
+ *   - ALGO_KAWPOW   — Ravencoin ProgPoW variant
+ *   - ALGO_ZELHASH  — Flux ZelHash (Equihash 125,4)
+ *   - ALGO_FIROPOW  — Firo FiroPow (ProgPoW, PENDING)
+ *   - ALGO_KHEAVYHASH — Kaspa kHeavyHash (no DAG, matrix per block)
  *                    program period = 3 blocks)
  */
 enum sha_algos {
@@ -26,6 +29,7 @@ enum sha_algos {
 	ALGO_BMW,
 	ALGO_DMD_GR,
 	ALGO_EQUIHASH,
+	ALGO_FIROPOW,		/* FiroPow (Firo ProgPoW, period=13, epoch=1300) */
 	ALGO_ETCHASH,		/* ETCHash (ECIP-1099) — Ethereum Classic     */
 	ALGO_FUGUE256,		/* Fugue256                                    */
 	ALGO_GROESTL,
@@ -34,7 +38,8 @@ enum sha_algos {
 	ALGO_KECCAKC,		/* Keccak-256 with pool factor 256 (CreativeCoin) */
 	ALGO_JACKPOT,
 	ALGO_JHA,
-	ALGO_KAWPOW,		/* KaPow (Ravencoin ProgPoW)                   */
+	ALGO_KAWPOW,		/* KawPow (Ravencoin ProgPoW)                   */
+	ALGO_KHEAVYHASH,	/* kHeavyHash (Kaspa, no DAG)                  */
 	ALGO_LBRY,
 	ALGO_LUFFA,
 	ALGO_LYRA2,
@@ -65,12 +70,14 @@ static const char *algo_names[] = {
 	"bmw",
 	"dmd-gr",
 	"equihash",
+	"firopow",
 	"etchash",
 	"fugue256",
 	"groestl",
 	"heavy",
 	"keccak",
 	"keccakc",
+	"kheavyhash",
 	"jackpot",
 	"jha",
 	"kawpow",
@@ -92,6 +99,7 @@ static const char *algo_names[] = {
 	"skein2",
 	"whirlcoin",
 	"whirlpool",
+	"zelhash",
 	"auto",		/* reserved for multi-algo */
 	""
 };

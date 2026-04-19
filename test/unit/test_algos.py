@@ -14,7 +14,7 @@ Removed (ASIC-dominated or dead):
 
 Added (GPU-minable):
   - etchash  -- Ethereum Classic ETCHash (ECIP-1099, epoch=60 000 blocks)
-  - kawpow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
+  - kapow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
 
 These lists MUST be kept in sync with algos.h.
 """
@@ -32,12 +32,14 @@ ALGO_NAMES = [
     "bmw",
     "dmd-gr",
     "equihash",
+    "firopow",
     "etchash",
     "fugue256",
     "groestl",
     "heavy",
     "keccak",
     "keccakc",
+    "kheavyhash",
     "jackpot",
     "jha",
     "kawpow",
@@ -59,6 +61,7 @@ ALGO_NAMES = [
     "skein2",
     "whirlcoin",
     "whirlpool",
+    "zelhash",
     "auto",
     "",
 ]
@@ -72,6 +75,12 @@ ALGO_COUNT = len(ALGO_NAMES) - 1
 
 ALGO_ALIASES = {
     "all":        "auto",
+    "flux":       "zelhash",
+    "firo":       "firopow",
+    "zcoin":      "firopow",
+    "kaspa":      "kheavyhash",
+    "kas":        "kheavyhash",
+    "zel":        "zelhash",
     "ergo":       "autolykos2",
     "autolykos":  "autolykos2",
     "diamond":    "dmd-gr",
@@ -168,6 +177,28 @@ class TestAlgorithms:
         )
         assert ALGO_ENUM.get("neoscrypt") is not None
 
+    def test_kheavyhash_present(self):
+        """kheavyhash must be present (Kaspa, no DAG, matrix per block)."""
+        assert "kheavyhash" in ALGO_NAMES, "kheavyhash missing from algo_names"
+        assert ALGO_ENUM.get("kheavyhash") is not None
+        assert ALGO_ALIASES.get("kaspa") == "kheavyhash"
+        assert ALGO_ALIASES.get("kas") == "kheavyhash"
+
+    def test_firopow_present(self):
+        """firopow must be present (Firo ProgPoW, period=13, epoch=1300)."""
+        assert "firopow" in ALGO_NAMES, "firopow missing from algo_names"
+        assert ALGO_ENUM.get("firopow") is not None
+        assert ALGO_ALIASES.get("firo") == "firopow"
+        assert ALGO_ALIASES.get("zcoin") == "firopow"
+
+    def test_zelhash_present(self):
+        """zelhash must be present (Flux Equihash 125,4)."""
+        assert "zelhash" in ALGO_NAMES, "zelhash missing from algo_names"
+        assert ALGO_ENUM.get("zelhash") is not None
+        # Aliases
+        assert ALGO_ALIASES.get("flux") == "zelhash"
+        assert ALGO_ALIASES.get("zel") == "zelhash"
+
     def test_autolykos2_present(self):
         """autolykos2 must be present (Ergo PoW, EIP-0037)."""
         assert "autolykos2" in ALGO_NAMES, "autolykos2 missing from algo_names"
@@ -178,9 +209,9 @@ class TestAlgorithms:
         assert "etchash" in ALGO_NAMES, "etchash is missing from algo_names"
         assert ALGO_ENUM.get("etchash") is not None
 
-    def test_kawpow_present(self):
-        """kawpow must be present (Ravencoin ProgPoW, epoch=7500, period=3)."""
-        assert "kawpow" in ALGO_NAMES, "kawpow is missing from algo_names"
+    def test_kapow_present(self):
+        """kapow must be present (Ravencoin ProgPoW, epoch=7500, period=3)."""
+        assert "kawpow" in ALGO_NAMES, "kapow is missing from algo_names"
         assert ALGO_ENUM.get("kawpow") is not None
 
     @pytest.mark.parametrize("algo", REMOVED_ALGOS)
@@ -194,7 +225,7 @@ class TestAlgorithms:
     def test_gpu_minable_algos_present(self):
         """All required GPU-minable algos must be present."""
         required = [
-            "neoscrypt", "etchash", "kawpow", "autolykos2",
+            "neoscrypt", "etchash", "kawpow", "firopow", "kheavyhash", "autolykos2", "zelhash",
             "lyra2", "lyra2v2", "lyra2v3", "lyra2z",
             "equihash", "groestl", "keccak", "quark", "qubit",
             "skein", "skein2", "sha256d",

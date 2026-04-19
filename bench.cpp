@@ -57,8 +57,10 @@ void algo_free_all(int thr_id)
 	// only initialized algos will be freed
 	free_allium(thr_id);
 	free_autolykos2(thr_id);
+	free_kheavyhash(thr_id);
 	free_bmw(thr_id);
 	free_equihash(thr_id);
+	free_zelhash(thr_id);
 	free_etchash(thr_id);
 	free_keccak256(thr_id);
 	free_fugue256(thr_id);
@@ -69,6 +71,7 @@ void algo_free_all(int thr_id)
 	free_jackpot(thr_id);
 	free_jha(thr_id);
 	free_kawpow(thr_id);
+	free_firopow(thr_id);
 	free_lbry(thr_id);
 	free_luffa(thr_id);
 	free_lyra2(thr_id);

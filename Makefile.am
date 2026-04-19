@@ -49,6 +49,7 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  Algo256/bmw.cu Algo256/cuda_bmw.cu \
 			  blake2b.cu \
 			  equi/equi-stratum.cpp \
+			  equi/zelhash.cpp \
 			  JHA/jha.cu JHA/jackpotcoin.cu JHA/cuda_jha_keccak512.cu \
 			  JHA/cuda_jha_compactionTest.cu cuda_checkhash.cu \
 			  quark/cuda_jh512.cu quark/cuda_quark_blake512.cu quark/cuda_quark_groestl512.cu quark/cuda_skein512.cu \
@@ -65,6 +66,11 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  sph/ripemd.c sph/sph_sha2.c \
 			  lbry/lbry.cu lbry/cuda_sha256_lbry.cu lbry/cuda_sha512_lbry.cu lbry/cuda_lbry_merged.cu
 
+# kHeavyHash (Kaspa, no DAG)
+gbxminer_SOURCES += \
+			  kheavyhash/kheavyhash.cpp \
+			  kheavyhash/kheavyhash_cuda.cu
+
 # Autolykos v2 (Ergo PoW, EIP-0037)
 gbxminer_SOURCES += \
 			  autolykos2/autolykos2.cpp \
@@ -79,15 +85,20 @@ gbxminer_SOURCES += \
 			  etchash/etchash.cpp \
 			  etchash/etchash_cuda_miner_kernel.cu
 
-# kawpow.cpp always compiled — provides free_kawpow() stub
-# when NVRTC is absent.  ProgPow.cpp and kawpow_cuda_miner_kernel.cpp
+# kapow.cpp always compiled — provides free_kawpow() stub
+# when NVRTC is absent.  ProgPow.cpp and kapow_cuda_miner_kernel.cpp
 # require NVRTC for JIT compilation.
-gbxminer_SOURCES += kawpow/kawpow.cpp
+gbxminer_SOURCES += kapow/kapow.cpp
+
+# firopow.cpp always compiled — provides free_firopow() stub.
+# Shares kapow/ProgPow.cpp (already listed above under HAVE_NVRTC).
+gbxminer_SOURCES += firopow/firopow.cpp
 
 if HAVE_NVRTC
 gbxminer_SOURCES += \
-			  kawpow/ProgPow.cpp \
-			  kawpow/kawpow_cuda_miner_kernel.cpp
+			  kapow/ProgPow.cpp \
+			  kapow/kapow_cuda_miner_kernel.cpp \
+			  firopow/firopow_cuda_miner_kernel.cpp
 endif
 
 if !ARCH_ARM64
@@ -201,6 +212,9 @@ autolykos2/reduction.o: autolykos2/reduction.cu
 
 autolykos2/compaction.o: autolykos2/compaction.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<
+
+kheavyhash/kheavyhash_cuda.o: kheavyhash/kheavyhash_cuda.cu
+	$(NVCC) $(nvcc_FLAGS) -I kheavyhash -o $@ -c $<
 
 autolykos2/autolykos2_cuda.o: autolykos2/autolykos2_cuda.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -I autolykos2 -o $@ -c $<

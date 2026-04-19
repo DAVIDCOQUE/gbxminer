@@ -44,8 +44,10 @@
 #include "miner.h"
 #include "algos.h"
 #include "etchash/etchash.h"
-#include "kawpow/kawpow.h"
+#include "firopow/firopow.h"
+#include "kapow/kawpow.h"
 #include "autolykos2/autolykos2.h"
+#include "kheavyhash/kheavyhash.h"
 #include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
 
@@ -245,6 +247,7 @@ Options:\n\
 			autolykos2  Ergo PoW (EIP-0037, k-sum BLAKE2b)\n\
 			bmw         BMW 256\n\
 			equihash    Zcash Equihash\n\
+			zelhash     Flux ZelHash (Equihash 125,4)\n\
 			etchash     Ethereum Classic (ECIP-1099, epoch=60000)\n\
 			fugue256    Fuguecoin\n\
 			dmd-gr      Diamond-Groestl\n\
@@ -255,7 +258,7 @@ Options:\n\
 "			jackpot     JHA v8\n\
 			keccak      Deprecated Keccak-256\n\
 			keccakc     Keccak-256 (CreativeCoin)\n\
-			kawpow       Ravencoin ProgPoW (epoch=7500, period=3)\n\
+			kapow       Ravencoin ProgPoW (epoch=7500, period=3)\n\
 			lbry        LBRY Credits (Sha/Ripemd)\n\
 			luffa       Joincoin\n\
 			lyra2       CryptoCoin\n\
@@ -549,9 +552,10 @@ void get_currentalgo(char* buf, int sz)
 
 void format_hashrate(double hashrate, char *output)
 {
-	if (opt_algo == ALGO_EQUIHASH)
+	if (opt_algo == ALGO_EQUIHASH || opt_algo == ALGO_ZELHASH)
 		format_hashrate_unit(hashrate, output, "Sol/s");
 	else if (opt_algo == ALGO_ETCHASH || opt_algo == ALGO_KAWPOW
+		|| opt_algo == ALGO_FIROPOW || opt_algo == ALGO_KHEAVYHASH
 		|| opt_algo == ALGO_AUTOLYKOS2)
 		format_hashrate_unit(hashrate, output, "MH/s");
 	else
@@ -639,7 +643,7 @@ static void calc_network_diff(struct work *work)
 	// todo: endian reversed on longpoll could be zr5 specific...
 	uint32_t nbits = have_longpoll ? work->data[18] : swab32(work->data[18]);
 	if (opt_algo == ALGO_LBRY) nbits = swab32(work->data[26]);
-	if (opt_algo == ALGO_EQUIHASH) {
+	if (opt_algo == ALGO_EQUIHASH || opt_algo == ALGO_ZELHASH) {
 		net_diff = equi_network_diff(work);
 		return;
 	}
@@ -669,12 +673,17 @@ static bool work_decode(const json_t *val, struct work *work)
 	case ALGO_NEOSCRYPT:
 	case ALGO_AUTOLYKOS2:
 		data_size = 80;
+	case ALGO_KHEAVYHASH:
+		data_size = 72;
 		adata_sz = data_size / 4;
 		break;
-	/* ETCHash and KaPow use 32-byte header hash; the stratum layer
+		adata_sz = data_size / 4;
+		break;
+	/* ETCHash and KawPow use 32-byte header hash; the stratum layer
 	 * supplies epoch/block-height separately via work->height.    */
 	case ALGO_ETCHASH:
 	case ALGO_KAWPOW:
+	case ALGO_FIROPOW:
 		data_size = 32;
 		adata_sz = data_size / 4;
 		break;
@@ -799,7 +808,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	int idnonce = work->submit_nonce_id;
 
 	/* rpc2 submit path removed */
-
+	
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
 		memcpy(&submit_work, work, sizeof(struct work));
@@ -1508,7 +1517,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 
 	pthread_mutex_unlock(&stratum_work_lock);
 
-	if (opt_debug && opt_algo != ALGO_EQUIHASH && opt_algo != ALGO_JHA) {
+	if (opt_debug && opt_algo != ALGO_EQUIHASH && opt_algo != ALGO_ZELHASH && opt_algo != ALGO_JHA) {
 		uint32_t utm = work->data[17];
 		utm = swab32(utm);
 		char *tm = atime2str(utm - sctx->srvtime_diff);
@@ -1551,10 +1560,12 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		case ALGO_AUTOLYKOS2:
 			work_set_target(work, sctx->job.diff / opt_difficulty);
 			break;
-		/* ETCHash/KaPow targets are full 256-bit boundaries supplied
-		 * by the pool; pass through without scaling.               */
+		/* ETCHash/KawPow/FiroPow targets are full 256-bit boundaries
+		 * supplied by the pool; pass through without scaling.      */
 		case ALGO_ETCHASH:
 		case ALGO_KAWPOW:
+		case ALGO_FIROPOW:
+		case ALGO_KHEAVYHASH:
 			work_set_target(work, sctx->job.diff / opt_difficulty);
 			break;
 		default:
@@ -1724,7 +1735,7 @@ static void *miner_thread(void *userdata)
 
 		uint32_t *nonceptr = (uint32_t*) (((char*)work.data) + wcmplen);
 
-		if (opt_algo == ALGO_EQUIHASH) {
+		if (opt_algo == ALGO_EQUIHASH || opt_algo == ALGO_ZELHASH) {
 			nonceptr = &work.data[EQNONCE_OFFSET]; // 27 is pool extranonce (256bits nonce space)
 			wcmplen = 4+32+32;
 		}
@@ -1814,7 +1825,7 @@ static void *miner_thread(void *userdata)
 			nonceptr[0] = (UINT32_MAX / opt_n_threads) * thr_id; // 0 if single thr
 		} else {
 			nonceptr[0]++; //??
-			if (opt_algo == ALGO_EQUIHASH) {
+			if (opt_algo == ALGO_EQUIHASH || opt_algo == ALGO_ZELHASH) {
 				nonceptr[1]++;
 				nonceptr[1] |= thr_id << 24;
 				//applog_hex(&work.data[27], 32);
@@ -1862,7 +1873,7 @@ static void *miner_thread(void *userdata)
 			gpulog(LOG_DEBUG, thr_id, "no data");
 			continue;
 		}
-
+	
 
 		/* conditional mining */
 		if (!wanna_mine(thr_id))
@@ -2015,6 +2026,7 @@ static void *miner_thread(void *userdata)
 				minmax = 0x400000;
 				break;
 			case ALGO_AUTOLYKOS2:
+			case ALGO_KHEAVYHASH:
 			case ALGO_LYRA2:
 			case ALGO_LYRA2Z:
 			case ALGO_NEOSCRYPT:
@@ -2024,6 +2036,7 @@ static void *miner_thread(void *userdata)
 			 * but DAG setup time dominates; keep window small.      */
 			case ALGO_ETCHASH:
 			case ALGO_KAWPOW:
+			case ALGO_FIROPOW:
 				minmax = 0x1000;
 				break;
 			}
@@ -2083,11 +2096,17 @@ static void *miner_thread(void *userdata)
 		case ALGO_AUTOLYKOS2:
 			rc = scanhash_autolykos2(thr_id, &work, max_nonce, &hashes_done);
 			break;
+		case ALGO_KHEAVYHASH:
+			rc = scanhash_kheavyhash(thr_id, &work, max_nonce, &hashes_done);
+			break;
 		case ALGO_BMW:
 			rc = scanhash_bmw(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_EQUIHASH:
 			rc = scanhash_equihash(thr_id, &work, max_nonce, &hashes_done);
+			break;
+		case ALGO_ZELHASH:
+			rc = scanhash_zelhash(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_ETCHASH:
 			rc = scanhash_etchash(thr_id, &work, max_nonce, &hashes_done);
@@ -2125,6 +2144,9 @@ static void *miner_thread(void *userdata)
 			break;
 		case ALGO_KAWPOW:
 			rc = scanhash_kawpow(thr_id, &work, max_nonce, &hashes_done);
+			break;
+		case ALGO_FIROPOW:
+			rc = scanhash_firopow(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_LBRY:
 			rc = scanhash_lbry(thr_id, &work, max_nonce, &hashes_done);
@@ -2254,7 +2276,7 @@ static void *miner_thread(void *userdata)
 		}
 
 		// only required to debug purpose
-		if (opt_debug && check_dups && opt_algo != ALGO_EQUIHASH && opt_algo != ALGO_JHA)
+		if (opt_debug && check_dups && opt_algo != ALGO_EQUIHASH && opt_algo != ALGO_ZELHASH && opt_algo != ALGO_JHA)
 			hashlog_remember_scan_range(&work);
 
 		/* output */
@@ -3589,7 +3611,7 @@ int main(int argc, char *argv[])
 		allow_mininginfo = false;
 	}
 
-	if (opt_algo == ALGO_EQUIHASH) {
+	if (opt_algo == ALGO_EQUIHASH || opt_algo == ALGO_ZELHASH) {
 		opt_extranonce = false; // disable subscribe
 	}
 
