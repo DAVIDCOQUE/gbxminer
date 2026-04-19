@@ -1,124 +1,104 @@
 # GBXminer GPU Mining Roadmap
 
-## v1.1.x — 2026 GPU Refocus
+---
 
-This roadmap tracks the ongoing effort to remove ASIC-dominated or CPU-only
-algorithm families and replace them with actively GPU-minable alternatives.
-All changes target NVIDIA GPUs (SM 5.0+) on Linux, macOS, and Windows.
+## v1.1.0 — Released
+
+Added ETCHash, KawPow, and Autolykos v2.  Removed all ASIC-dominated
+and CPU-only algorithm families.
+
+### Added in v1.1.0
+
+| Algorithm | Coin(s) | VRAM | Notes |
+|---|---|---|---|
+| ETCHash | Ethereum Classic | 5 GB+ | ECIP-1099, epoch every 60 000 blocks |
+| KawPow | Ravencoin, Neurai | 6 GB+ | ProgPoW, period=3, requires `--with-nvrtc` |
+| Autolykos v2 | Ergo | 3 GB+ | k-sum BLAKE2b-256, no epoch, per-block table |
+
+### Removed in v1.1.0
+
+| Family | Reason |
+|---|---|
+| X-series (X11–X17, hsr, sonoa, zr5) | Full ASIC domination since 2018 |
+| Blake-ASIC (decred, pentablake, vanilla) | 100% ASIC territory |
+| CryptoNight (cryptonight, cryptolight, monero, graft, stellite, wildkeccak) | Monero → RandomX (CPU-only) in 2019 |
+| Scrypt / Scrypt-Jane | ASIC-dominated since 2014 |
 
 ---
 
-## Algorithms — Retained
+## v1.2.x — Current Development Branch
+
+Adds kHeavyHash, ZelHash, and FiroPow.  Removes the remaining ghost
+algorithm families still compiled in the binary from v1.1.0.
+
+### Added in v1.2.x
+
+#### kHeavyHash (Kaspa)
+- **Status**: **ADDED** ✅
+- No DAG, no epoch.  The 64×64 matrix is derived from each block header
+  on-device in microseconds via xoshiro256** PRNG.  Near-instant startup;
+  ideal for donation-burst windows.
+- Requires ≥ 1 GB VRAM.
+- Aliases: `-a kaspa`, `-a kas`
+- New files: `kheavyhash/`
+
+#### ZelHash (Flux)
+- **Status**: **ADDED** ✅
+- Equihash 125,4.  Reuses the existing `cuda_equi.cu` templated solver via
+  CONFIG_MODE_4 (RB=5, SM=10, SSM=6, THREADS=512).  Solution is 52 bytes
+  (vs 1344 for Equihash 200,9).
+- Requires ≥ 6 GB VRAM.
+- Aliases: `-a flux`, `-a zel`
+- New files: `equi/zelhash.cpp`; modified `equi/equihash.h`, `equi/equi.cpp`,
+  `equi/cuda_equi.cu`, `equi/eqcuda.hpp`
+
+#### FiroPow (Firo)
+- **Status**: **ADDED** ✅
+- ProgPoW with EPOCH_LENGTH=1300 and PERIOD=13 (vs 7500/3 for KawPow).
+  Shares `kapow/ProgPow.cpp` unchanged; only the two period/epoch constants
+  differ.  Requires `--with-nvrtc` at configure time.
+- Requires ≥ 4 GB VRAM.
+- Aliases: `-a firo`, `-a zcoin`
+- New files: `firopow/`
+
+### Removed in v1.2.x
+
+The following families were still compiled in v1.1.0 but unreachable via
+the algo enum.  They are excised in v1.2.x:
+
+| Family | Reason |
+|---|---|
+| Groestl / Myriad-Groestl | Dead or ASIC-dominated networks |
+| Skein / Skein2 | Dead networks (Woodcoin irrelevant) |
+| Quark / Qubit / Keccakc | Ghost networks, zero viable GPU hashrate |
+
+---
+
+## Permanent
 
 ### NeoScrypt (GoByte)
-- **Status**: Retained ✅ — **permanent, protected by unit test invariant**
-- This algorithm is GoByte's primary proof-of-work. It will never be removed.
+- **Status**: Retained ✅ — **will never be removed**
+- GoByte's primary proof-of-work.  Protected by a hard invariant in the
+  unit test suite (`test_neoscrypt_permanent`).
 
 ---
 
-## Algorithms — Added in v1.1.x
+## Master Status Table
 
-### ETCHash (Ethereum Classic)
-- **Status**: **ADDED** ✅ — v1.1.0
-- Epoch boundary doubled to every 60 000 blocks (ECIP-1099, activated at block
-  11 700 000). Same DAG growth curve as original Ethash.
-- Requires ≥ 5 GB VRAM.
-- Cannibalised from etcminer (GPL-3.0).
-- New files: `etchash/`
-
-### KawPow (Ravencoin, Neurai)
-- **Status**: **ADDED** ✅ — v1.1.0
-- Ravencoin's ProgPoW variant (KAWPOW). Inner-loop program changes every 3
-  blocks and is JIT-compiled via NVRTC. Extremely ASIC-resistant.
-- Requires ≥ 6 GB VRAM. Requires `--with-nvrtc` at configure time; builds to
-  a clean no-op stub without it.
-- Cannibalised from KapowMiner (GPL-3.0).
-- New files: `kapow/`
-
-### Autolykos v2 (Ergo)
-- **Status**: **ADDED** ✅ — v1.1.0
-- k-sum puzzle over N = 2²⁶ BLAKE2b-256 prehash entries (~2 GiB VRAM).
-  Table rebuilt per block (no epoch concept); ~1–2 s rebuild on RTX 3080.
-- Requires ≥ 3 GB VRAM.
-- Cannibalised from Autolykosminer by mhssamadani (GPL-3.0).
-  `reduction.cu` and `compaction.cu` written from scratch (not in upstream
-  archive).
-- New files: `autolykos2/`
-
----
-
-## Algorithms — Planned (next milestones)
-
-### kHeavyHash (Kaspa)
-- **Status**: 🔲 PENDING — v1.2.x
-- Kaspa's proof-of-work. Hashes the block header through a sparse matrix
-  multiplication followed by HeavyHash (keccak + custom matrix step).
-  Very low memory footprint, near-instant kernel startup.
-- GPU-viable despite ASIC presence; well-suited to donation-burst windows.
-- Requires ≥ 1 GB VRAM (no DAG or epoch management).
-- Upstream reference: `KaspaMiner` / `lolMiner` open-source kernel (GPL-3.0).
-- **Implementation plan**: `kheavyhash/` directory, single `.cu` kernel.
-
-### ZelHash / MiniZcash (Flux)
-- **Status**: 🔲 PENDING — v1.2.x
-- Equihash 125,4 variant used by Flux. The equihash base code is already
-  present in `equi/`; ZelHash requires only the Flux personalisation string
-  (`"ZcashPoW"` → `"FluxPoW"`) and Flux stratum extensions.
-- Requires ≥ 6 GB VRAM.
-- **Implementation plan**: extend `equi/equi-stratum.cpp` and
-  `equi/cuda_equi.cu` with the ZelHash personalisation; add
-  `ALGO_ZELHASH` dispatch in `gbxminer.cpp`.
-
-### FiroPow (Firo)
-- **Status**: 🔲 PENDING — v1.2.x
-- Firo's ProgPoW derivative (replaced MTP in 2021). Parameters differ from
-  KawPow: `PROGPOW_PERIOD = 13`, `EPOCH_LENGTH = 1300`, shorter DAG growth.
-- ASIC-resistant. Requires ≥ 4 GB VRAM.
-- Can reuse the KawPow NVRTC/ProgPoW infrastructure (`kapow/ProgPow.cpp`)
-  with a separate parameter set; no full kernel rewrite needed.
-- **Implementation plan**: `firopow/` directory, thin wrapper over
-  `kapow/ProgPow.cpp` with Firo-specific constants, new `ALGO_FIROPOW`
-  dispatch.
-
----
-
-## Algorithms — Removed in v1.1.x
-
-| Family | Coins | Reason |
-|---|---|---|
-| X-series (X11–X17) | Dash and derivatives | Full ASIC domination since 2018 |
-| X11-dependent (hsr, sonoa, zr5) | Various | ASIC-dominated; share X11 internals |
-| Blake-ASIC (decred, pentablake, vanilla) | Decred, Vertcoin | 100% ASIC territory |
-| CryptoNight family (cryptonight, cryptolight, monero, graft, stellite, wildkeccak) | XMR and forks | Monero migrated to RandomX (CPU-only) in 2019 |
-| Scrypt / Scrypt-Jane | Litecoin, Dogecoin | ASIC-dominated since 2014 |
-
-### Still in binary — planned removal in v1.2.x
-
-The following families remain compiled but are unreachable via the algo enum.
-They will be excised in v1.2.x once the new algo additions are complete:
-
-- **Groestl / Myriad-Groestl** — dead or ASIC-dominated networks
-- **Skein / Skein2** — dead networks
-- **Quark / Qubit / Keccakc** — ghost networks with zero viable GPU hashrate
-
----
-
-## Master Implementation Status
-
-| Algorithm | Coin(s) | VRAM | v1.1.x Status |
+| Algorithm | Coin(s) | VRAM | Version |
 |---|---|---|---|
-| NeoScrypt | GoByte | 1 GB | Retained ✅ |
-| ETCHash | Ethereum Classic | 5 GB+ | Added ✅ |
-| KawPow | Ravencoin, Neurai | 6 GB+ | Added ✅ |
-| Autolykos v2 | Ergo | 3 GB+ | Added ✅ |
-| kHeavyHash | Kaspa | 1 GB | 🔲 Pending |
-| ZelHash | Flux | 6 GB+ | 🔲 Pending |
-| FiroPow | Firo | 4 GB+ | 🔲 Pending |
-| X-series (X11–X17) | — | — | Removed ✅ |
-| Blake-ASIC | — | — | Removed ✅ |
-| CryptoNight family | — | — | Removed ✅ |
-| Scrypt / Scrypt-Jane | — | — | Removed ✅ |
-| Groestl / Skein / Quark | — | — | Planned removal (v1.2.x) |
+| NeoScrypt | GoByte | 1 GB | Permanent ✅ |
+| ETCHash | Ethereum Classic | 5 GB+ | v1.1.0 ✅ |
+| KawPow | Ravencoin, Neurai | 6 GB+ | v1.1.0 ✅ |
+| Autolykos v2 | Ergo | 3 GB+ | v1.1.0 ✅ |
+| kHeavyHash | Kaspa | 1 GB | v1.2.x ✅ |
+| ZelHash | Flux | 6 GB+ | v1.2.x ✅ |
+| FiroPow | Firo | 4 GB+ | v1.2.x ✅ |
+| X-series (X11–X17) | — | — | Removed v1.1.0 ✅ |
+| CryptoNight family | — | — | Removed v1.1.0 ✅ |
+| Scrypt / Scrypt-Jane | — | — | Removed v1.1.0 ✅ |
+| Blake-ASIC | — | — | Removed v1.1.0 ✅ |
+| Groestl / Skein / Quark | — | — | Removed v1.2.x ✅ |
 
 ---
 
@@ -126,13 +106,11 @@ They will be excised in v1.2.x once the new algo additions are complete:
 
 For RTX 3000/4000 series GPUs:
 
-- **Primary** — Autolykos v2 (Ergo): best efficiency-to-profitability ratio
-  for mid-range cards; no epoch rebuilds during a mining session.
-- **Heavy GPU** — KawPow (Ravencoin): maximum ASIC resistance; high VRAM
-  and power draw.
-- **Stable DAG** — ETCHash (Ethereum Classic): predictable DAG, low
-  management overhead.
-- **Donation/burst** — kHeavyHash (Kaspa): near-instant startup, minimal
-  heat; ideal for 15-minute developer-fee windows *(pending)*.
-- **GoByte ecosystem** — NeoScrypt: always available regardless of market
-  conditions.
+| Goal | Algorithm | Why |
+|---|---|---|
+| Best efficiency | Autolykos v2 (Ergo) | No epoch rebuild; low VRAM; good ERG profitability |
+| ASIC resistance | KawPow (Ravencoin) | Maximum resistance; high VRAM and power draw |
+| Stable DAG | ETCHash (Ethereum Classic) | Predictable DAG; low management overhead |
+| Donation/burst | kHeavyHash (Kaspa) | Near-instant startup; minimal heat; 1 GB VRAM |
+| Privacy coin | FiroPow (Firo) | ASIC-resistant ProgPoW replacement for MTP |
+| GoByte ecosystem | NeoScrypt | Always available; GoByte primary PoW |
