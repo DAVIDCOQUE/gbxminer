@@ -37,6 +37,7 @@
 /*  NVRTC availability guard                                            */
 /* ------------------------------------------------------------------ */
 #ifdef HAVE_NVRTC
+#  include <cuda.h>
 #  include <nvrtc.h>
 
 #  define NVRTC_SAFE_CALL(call)                                             \
