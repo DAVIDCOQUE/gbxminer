@@ -22,6 +22,10 @@
  * The build still succeeds; KawPow simply cannot be used.
  */
 
+/* gbxminer-config.h MUST come first — it defines HAVE_NVRTC which gates
+ * the macro and type definitions in kawpow_cuda_miner_kernel.h.        */
+#include <gbxminer-config.h>
+
 /* C++ STL headers MUST precede miner.h (which defines min/max macros
  * that break C++ template parsing). ProgPow.h uses std::string and
  * std::stringstream extensively.                                   */
