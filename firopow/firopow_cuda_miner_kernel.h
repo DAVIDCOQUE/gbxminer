@@ -73,6 +73,11 @@ struct KawpowSearch_results
 /* ------------------------------------------------------------------ */
 
 #ifdef HAVE_NVRTC
+/* CUmodule, CUresult and other Driver API types live in cuda.h, not
+ * cuda_runtime.h.  Include it here so any translation unit that
+ * includes this header gets the Driver API types unconditionally.  */
+#include <cuda.h>
+
 /* ------------------------------------------------------------------ */
 /*  Host API                                                            */
 /* ------------------------------------------------------------------ */
