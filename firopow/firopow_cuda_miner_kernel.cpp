@@ -227,6 +227,8 @@ bool firopow_compile_kernel(uint64_t period, CUmodule* mod_out)
 /*  firopow_run_search                                                    */
 /* ------------------------------------------------------------------ */
 
+#ifdef HAVE_NVRTC
+
 void firopow_run_search(CUmodule module, uint32_t grid_size, uint32_t block_size,
                       cudaStream_t stream,
                       volatile KawpowSearch_results* g_output,
@@ -270,3 +272,5 @@ void firopow_free_modules(void)
         cuModuleUnload(kv.second);
     s_module_cache.clear();
 }
+
+#endif /* HAVE_NVRTC */
