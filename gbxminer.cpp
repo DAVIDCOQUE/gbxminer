@@ -1430,7 +1430,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 			break;
 #endif
 		case ALGO_FUGUE256:
-		case ALGO_GROESTL:
 		case ALGO_KECCAK:
 		case ALGO_WHIRLCOIN:
 			SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
@@ -1540,8 +1539,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		case ALGO_ALLIUM:
 		case ALGO_DMD_GR:
 		case ALGO_FUGUE256:
-		case ALGO_GROESTL:
-		case ALGO_KECCAKC:
 		case ALGO_LBRY:
 		case ALGO_LYRA2v2:
 		case ALGO_LYRA2v3:
@@ -2008,12 +2005,9 @@ static void *miner_thread(void *userdata)
 				minmax = 0x40000000U;
 				break;
 			case ALGO_KECCAK:
-			case ALGO_KECCAKC:
 			case ALGO_LBRY:
 			case ALGO_LUFFA:
 			case ALGO_JHA:
-			case ALGO_SKEIN:
-			case ALGO_SKEIN2:
 				minmax = 0x1000000;
 				break;
 			case ALGO_ALLIUM:
@@ -2115,27 +2109,6 @@ static void *miner_thread(void *userdata)
 			rc = scanhash_fugue256(thr_id, &work, max_nonce, &hashes_done);
 			break;
 
-		case ALGO_GROESTL:
-		case ALGO_DMD_GR:
-			rc = scanhash_groestlcoin(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_MYR_GR:
-			rc = scanhash_myriad(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-#ifdef WITH_HEAVY_ALGO
-		case ALGO_HEAVY:
-			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, work.maxvote, HEAVYCOIN_BLKHDR_SZ);
-			break;
-		case ALGO_MJOLLNIR:
-			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, 0, MNR_BLKHDR_SZ);
-			break;
-#endif
-		case ALGO_KECCAK:
-		case ALGO_KECCAKC:
-			rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
 		case ALGO_JACKPOT:
 			rc = scanhash_jackpot(thr_id, &work, max_nonce, &hashes_done);
 			break;
@@ -2154,12 +2127,6 @@ static void *miner_thread(void *userdata)
 		case ALGO_LUFFA:
 			rc = scanhash_luffa(thr_id, &work, max_nonce, &hashes_done);
 			break;
-		case ALGO_QUARK:
-			rc = scanhash_quark(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_QUBIT:
-			rc = scanhash_qubit(thr_id, &work, max_nonce, &hashes_done);
-			break;
 		case ALGO_LYRA2:
 			rc = scanhash_lyra2(thr_id, &work, max_nonce, &hashes_done);
 			break;
@@ -2177,12 +2144,6 @@ static void *miner_thread(void *userdata)
 			break;
 		case ALGO_NIST5:
 			rc = scanhash_nist5(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SKEIN:
-			rc = scanhash_skeincoin(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SKEIN2:
-			rc = scanhash_skein2(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_SHA256D:
 			rc = scanhash_sha256d(thr_id, &work, max_nonce, &hashes_done);
@@ -2243,7 +2204,6 @@ static void *miner_thread(void *userdata)
 			double rate_factor = 1.0;
 			switch (opt_algo) {
 				case ALGO_JACKPOT:
-				case ALGO_QUARK:
 					// to stay comparable to other gbxminer forks or pools
 					rate_factor = 0.5;
 					break;

@@ -64,7 +64,6 @@ void algo_free_all(int thr_id)
 	free_etchash(thr_id);
 	free_keccak256(thr_id);
 	free_fugue256(thr_id);
-	free_groestlcoin(thr_id);
 #ifdef WITH_HEAVY_ALGO
 	free_heavy(thr_id);
 #endif
@@ -78,13 +77,8 @@ void algo_free_all(int thr_id)
 	free_lyra2v2(thr_id);
 	free_lyra2v3(thr_id);
 	free_lyra2Z(thr_id);
-	free_myriad(thr_id);
 	free_neoscrypt(thr_id);
 	free_nist5(thr_id);
-	free_quark(thr_id);
-	free_qubit(thr_id);
-	free_skeincoin(thr_id);
-	free_skein2(thr_id);
 	free_sha256d(thr_id);
 	free_sha256t(thr_id);
 	free_whirl(thr_id);
@@ -107,15 +101,11 @@ bool bench_algo_switch_next(int thr_id)
 	if (algo == ALGO_DMD_GR)    algo++; /* same as groestl */
 	if (algo == ALGO_HEAVY)     algo++; /* dead */
 	if (algo == ALGO_MJOLLNIR)  algo++; /* same as heavy */
-	if (algo == ALGO_KECCAKC)   algo++; /* same as keccak */
 	if (algo == ALGO_WHIRLCOIN) algo++; /* same as whirlpool */
-	if (algo == ALGO_QUARK)     algo++; /* to fix */
 	if (algo == ALGO_LBRY && CUDART_VERSION < 7000) algo++;
 
 	if (device_sm[dev_id] && device_sm[dev_id] < 300) {
 		// incompatible SM 2.1 kernels...
-		if (algo == ALGO_GROESTL)   algo++;
-		if (algo == ALGO_MYR_GR)    algo++;
 		if (algo == ALGO_NEOSCRYPT) algo++;
 	}
 

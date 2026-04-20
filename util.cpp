@@ -2191,9 +2191,6 @@ void print_hash_tests(void)
 	// fugue256_hash(&hash[0], &buf[0], 32);
 	// printpfx("fugue256", hash);
 
-	groestlhash(&hash[0], &buf[0]);
-	printpfx("groestl", hash);
-
 	// heavycoin_hash(&hash[0], &buf[0], 32);
 	// printpfx("heavy", hash);
 
@@ -2234,23 +2231,11 @@ void print_hash_tests(void)
 	nist5hash(&hash[0], &buf[0]);
 	printpfx("nist5", hash);
 
-	quarkhash(&hash[0], &buf[0]);
-	printpfx("quark", hash);
-
-	qubithash(&hash[0], &buf[0]);
-	printpfx("qubit", hash);
-
 	sha256d_hash(&hash[0], &buf[0]);
 	printpfx("sha256d", hash);
 
 	sha256t_hash(&hash[0], &buf[0]);
 	printpfx("sha256t", hash);
-
-	skeincoinhash(&hash[0], &buf[0]);
-	printpfx("skein", hash);
-
-	skein2hash(&hash[0], &buf[0]);
-	printpfx("skein2", hash);
 
 	// stellite_hash(&hash[0], &buf[0]);
 	// printpfx("stelitte", hash);

@@ -2,19 +2,30 @@
 """
 Unit tests for algorithm name/enum consistency in GBXminer.
 
-Reflects the algo set after the following removals and additions:
+Reflects the algo set after v1.1.0 and v1.2.0 removals and additions.
 
 Removed (ASIC-dominated or dead):
+  v1.1.0:
   - X-series family:    hsr (X13), sonoa (X17), zr5 (X11)
   - Blake-ASIC:         decred, pentablake (penta), vanilla/blake
   - CryptoNight family: cryptonight, cryptolight, monero, graft,
                         stellite, wildkeccak
   - Scrypt family:      scrypt, scrypt-jane
     (neoscrypt RETAINED -- GoByte primary PoW)
+  v1.2.0:
+  - Groestl family:     groestl, myr-gr
+  - Skein family:       skein, skein2
+  - Ghost networks:     quark, qubit, keccakc
 
-Added (GPU-minable):
-  - etchash  -- Ethereum Classic ETCHash (ECIP-1099, epoch=60 000 blocks)
-  - kawpow    -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
+Added:
+  v1.1.0:
+  - etchash    -- Ethereum Classic ETCHash (ECIP-1099, epoch=60 000 blocks)
+  - kawpow     -- Ravencoin ProgPoW variant (epoch=7 500, period=3)
+  - autolykos2 -- Ergo PoW (EIP-0037, k-sum BLAKE2b-256)
+  v1.2.0:
+  - kheavyhash -- Kaspa (no DAG, 64x64 matrix per block)
+  - zelhash    -- Flux (Equihash 125,4)
+  - firopow    -- Firo ProgPoW (period=13, epoch=1300)
 
 These lists MUST be kept in sync with algos.h.
 """
@@ -35,10 +46,8 @@ ALGO_NAMES = [
     "firopow",
     "etchash",
     "fugue256",
-    "groestl",
     "heavy",
     "keccak",
-    "keccakc",
     "kheavyhash",
     "jackpot",
     "jha",
@@ -50,15 +59,10 @@ ALGO_NAMES = [
     "lyra2v3",
     "lyra2z",
     "mjollnir",
-    "myr-gr",
     "neoscrypt",
     "nist5",
-    "quark",
-    "qubit",
     "sha256d",
     "sha256t",
-    "skein",
-    "skein2",
     "whirlcoin",
     "whirlpool",
     "zelhash",
@@ -102,14 +106,20 @@ ALGO_ALIASES = {
 # ---------------------------------------------------------------------------
 
 REMOVED_ALGOS = [
-    # X-series
+    # v1.1.0 — X-series
     "hsr", "sonoa", "zr5",
-    # Blake-ASIC
+    # v1.1.0 — Blake-ASIC
     "decred", "penta", "vanilla", "blake",
-    # CryptoNight
+    # v1.1.0 — CryptoNight
     "cryptonight", "cryptolight", "monero", "graft", "stellite", "wildkeccak",
-    # Scrypt-ASIC
+    # v1.1.0 — Scrypt-ASIC
     "scrypt", "scrypt-jane",
+    # v1.2.0 — Groestl family
+    "groestl", "myr-gr",
+    # v1.2.0 — Skein family
+    "skein", "skein2",
+    # v1.2.0 — Ghost networks
+    "quark", "qubit", "keccakc",
 ]
 
 
@@ -227,8 +237,7 @@ class TestAlgorithms:
         required = [
             "neoscrypt", "etchash", "kawpow", "firopow", "kheavyhash", "autolykos2", "zelhash",
             "lyra2", "lyra2v2", "lyra2v3", "lyra2z",
-            "equihash", "groestl", "keccak", "quark", "qubit",
-            "skein", "skein2", "sha256d",
+            "equihash", "keccak", "sha256d",
         ]
         missing = [a for a in required if a not in ALGO_NAMES]
         assert not missing, f"Required GPU-minable algos missing: {missing}"

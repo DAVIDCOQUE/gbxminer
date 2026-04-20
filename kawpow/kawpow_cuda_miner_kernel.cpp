@@ -22,6 +22,10 @@
  * The build still succeeds; KawPow simply cannot be used.
  */
 
+/* gbxminer-config.h MUST come first — it defines HAVE_NVRTC which gates
+ * the macro and type definitions in kawpow_cuda_miner_kernel.h.        */
+#include <gbxminer-config.h>
+
 /* C++ STL headers MUST precede miner.h (which defines min/max macros
  * that break C++ template parsing). ProgPow.h uses std::string and
  * std::stringstream extensively.                                   */
@@ -37,6 +41,7 @@
 /*  NVRTC availability guard                                            */
 /* ------------------------------------------------------------------ */
 #ifdef HAVE_NVRTC
+#  include <cuda.h>
 #  include <nvrtc.h>
 
 #  define NVRTC_SAFE_CALL(call)                                             \
@@ -226,6 +231,8 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
 /*  kawpow_run_search                                                    */
 /* ------------------------------------------------------------------ */
 
+#ifdef HAVE_NVRTC
+
 void kawpow_run_search(CUmodule module, uint32_t grid_size, uint32_t block_size,
                       cudaStream_t stream,
                       volatile KawpowSearch_results* g_output,
@@ -269,3 +276,5 @@ void kawpow_free_modules(void)
         cuModuleUnload(kv.second);
     s_module_cache.clear();
 }
+
+#endif /* HAVE_NVRTC */

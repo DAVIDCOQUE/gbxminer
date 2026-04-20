@@ -13,6 +13,10 @@
  * time, scanhash_kawpow() logs an error and returns -1.
  */
 
+/* gbxminer-config.h MUST come first — it defines HAVE_NVRTC which gates
+ * type and macro definitions in kawpow_cuda_miner_kernel.h.           */
+#include <gbxminer-config.h>
+
 /* C++ STL headers MUST precede miner.h (which defines min/max macros
  * that break C++ template parsing in <bits/stl_algobase.h>).     */
 #include "kawpow/kawpow_cuda_miner_kernel.h"
