@@ -72,7 +72,7 @@
 - Jansson Development (libjansson-dev)
 - pthreads
 - GCC/G++ with C++11 support
-- nvrtc (required for KawPow and FiroPow only — pass `--with-nvrtc` to configure)
+- nvrtc (required for KawPow and FiroPow only — already enabled in `configure.sh`)
 
 ## Usage
 
@@ -173,7 +173,7 @@ Debug:
 
 | Version | Date | Summary |
 |---|---|---|
-| v1.2.0 | 2026 | Added kHeavyHash, ZelHash, FiroPow. Removed Groestl, Skein, Quark families. |
+| v1.2.1 | 2026 | Added kHeavyHash, ZelHash, FiroPow. Removed Groestl, Skein, Quark families. Fixed KawPow/FiroPow NVRTC build. |
 | v1.1.0 | 2026 | Added ETCHash, KawPow, Autolykos v2. Removed X-series, CryptoNight, Scrypt, Blake-ASIC. |
 | v1.0.1 | Apr 2026 | Rebranded from ccminer to GBXminer. CUDA 12 support. |
 

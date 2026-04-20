@@ -1,5 +1,5 @@
 
-GBXminer 1.2.0                    " - Fastest nVidia GPU Miner"
+GBXminer 1.2.1                    " - Fastest nVidia GPU Miner"
 ---------------------------------------------------------------
 
 ***************************************************************
@@ -23,7 +23,7 @@ Built from a fork of ccminer with optimizations for modern nVidia GPUs (GTX 900 
 This version supports:
 - NeoScrypt (GoByte) - PRIMARY, will never be removed
 - ETCHash, KawPow, Autolykos v2 (added v1.1.0)
-- kHeavyHash, ZelHash, FiroPow (added v1.2.0)
+- kHeavyHash, ZelHash, FiroPow (added v1.2.1)
 - And other algorithms (see below)
 
 
@@ -34,7 +34,7 @@ This version supports:
                           # Primary Algorithm (Permanent)
                           neoscrypt     GoByte primary PoW — will never be removed
 
-                          # Added in v1.2.0
+                          # Added in v1.2.1
                           kheavyhash    Kaspa (aliases: kaspa, kas)
                                           No DAG, no epoch. 64x64 matrix per block.
                                           Minimum 1 GB VRAM.
@@ -76,7 +76,7 @@ This version supports:
                           whirlcoin     Whirlcoin
                           whirlpool     Joincoin
 
-                          # REMOVED in v1.2.0 (ASIC-dominated / dead networks)
+                          # REMOVED in v1.2.1 (ASIC-dominated / dead networks)
                           #   groestl, myr-gr, skein, skein2, quark, qubit, keccakc
 
                           # REMOVED in v1.1.0 (ASIC-dominated / CPU-only)
@@ -168,7 +168,7 @@ You can test it on linux with "telnet <miner-ip> 4068" and type "help".
 
 >>> GBXMINER RELEASE HISTORY <<<
 
-  2026            v1.2.0
+  2026            v1.2.1
                   Added kHeavyHash (Kaspa), ZelHash (Flux), FiroPow (Firo)
                   Removed Groestl/Myriad-Groestl, Skein/Skein2, Quark/Qubit/Keccakc
                   Fixed ALGO_ZELHASH missing from enum

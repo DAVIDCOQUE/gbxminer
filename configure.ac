@@ -1,4 +1,4 @@
-AC_INIT([gbxminer], [1.0.0], [], [gbxminer], [http://github.com/d0wn3d/gbxminer])
+AC_INIT([gbxminer], [1.2.1], [], [gbxminer], [http://github.com/d0wn3d/gbxminer])
 
 AC_PREREQ([2.60])
 AC_CONFIG_SRCDIR([gbxminer.cpp])
