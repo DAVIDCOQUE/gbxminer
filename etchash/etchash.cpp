@@ -73,6 +73,19 @@ static const uint64_t ETCHASH_ACCESSES_HOST  = 64;
 /*  Per-GPU state                                                       */
 /* ------------------------------------------------------------------ */
 
+/*
+ * ETCHASH_DAG_LOOKAHEAD_BYTES
+ *
+ * Extra bytes reserved beyond the current epoch's DAG size on the first
+ * allocation.  Two full epochs of growth (2 × 8 MiB = 16 MiB) means the
+ * GPU DAG buffer survives two epoch transitions before a reallocation is
+ * needed.  This eliminates the cudaFree + cudaMalloc + GPU-idle stall that
+ * the original code incurred on every epoch change.
+ *
+ * Value: 2 × ETCHASH_DATASET_GROW = 2 × (1 << 23) = 16 777 216 bytes.
+ */
+static const uint64_t ETCHASH_DAG_LOOKAHEAD_BYTES = 2ULL * (1ULL << 23);
+
 struct EtchashGpuState {
     int          epoch;          /* -1 = uninitialised */
     uint32_t     dag_size;       /* DAG item count (128-byte nodes) */
@@ -83,8 +96,28 @@ struct EtchashGpuState {
 
     volatile EtcSearch_results* d_results; /* search results buffer */
 
-    uint64_t allocated_dag;
-    uint64_t allocated_light;
+    uint64_t allocated_dag;      /* current GPU allocation capacity (bytes) */
+    uint64_t allocated_light;    /* current GPU allocation capacity (bytes) */
+
+    /*
+     * Pinned host staging buffer for the light cache.
+     *
+     * cudaMallocHost() allocates page-locked (pinned) host memory.  The CUDA
+     * DMA engine can then transfer directly from this buffer without an
+     * intermediate pageable bounce-copy, raising effective PCIe throughput
+     * from ~4 GB/s (pageable) to ~12 GB/s (pinned) on PCIe 3.0 x16.
+     *
+     * h_light_pinned is allocated on first use and kept for the lifetime of
+     * the miner; it is freed in free_etchash() via cudaFreeHost().  If
+     * cudaMallocHost() fails (e.g. no driver, CI node), the code falls back
+     * to a regular malloc() allocation so the miner still functions.
+     *
+     * pinned_light_cap tracks the current capacity so the buffer is only
+     * reallocated when the light cache grows past the existing reservation.
+     */
+    uint8_t* h_light_pinned;     /* pinned host staging buffer (or malloc fallback) */
+    uint64_t pinned_light_cap;   /* byte capacity of h_light_pinned */
+    bool     pinned_alloc_ok;    /* true = cudaMallocHost succeeded */
 };
 
 static EtchashGpuState s_gpu[MAX_GPUS];
@@ -94,12 +127,15 @@ static void etchash_init_states(void)
 {
     if (s_initialized) return;
     for (int i = 0; i < MAX_GPUS; i++) {
-        s_gpu[i].epoch           = -1;
-        s_gpu[i].d_dag           = nullptr;
-        s_gpu[i].d_light         = nullptr;
-        s_gpu[i].d_results       = nullptr;
-        s_gpu[i].allocated_dag   = 0;
-        s_gpu[i].allocated_light = 0;
+        s_gpu[i].epoch            = -1;
+        s_gpu[i].d_dag            = nullptr;
+        s_gpu[i].d_light          = nullptr;
+        s_gpu[i].d_results        = nullptr;
+        s_gpu[i].allocated_dag    = 0;
+        s_gpu[i].allocated_light  = 0;
+        s_gpu[i].h_light_pinned   = nullptr;
+        s_gpu[i].pinned_light_cap = 0;
+        s_gpu[i].pinned_alloc_ok  = false;
     }
     s_initialized = true;
 }
@@ -232,60 +268,124 @@ static bool etchash_prepare_dag(int thr_id, uint32_t block_height)
     applog(LOG_INFO, "GPU #%d: ETCHash epoch %u, DAG %.2f GB — generating…",
            dev_id, epoch, (double)dag_bytes / 1073741824.0);
 
-    /* ---- host: build light cache ---- */
-    uint8_t seed[32];
-    etchash_epoch_seed(epoch, seed);
-
-    uint8_t* h_light = (uint8_t*)malloc(lgt_bytes);
-    if (!h_light) {
-        applog(LOG_ERR, "GPU #%d: ETCHash malloc light cache failed (%llu bytes)",
-               dev_id, (unsigned long long)lgt_bytes);
-        return false;
-    }
-    etchash_build_light_cache(h_light, lgt_bytes, seed);
-
-    /* ---- device: re-allocate if size changed ---- */
     cudaSetDevice(dev_id);
 
+    /* ------------------------------------------------------------------
+     * Pinned host staging buffer for the light cache.
+     *
+     * Grow the pinned buffer when the new light cache exceeds the current
+     * reservation.  On first use pinned_light_cap == 0 so this always
+     * allocates.  The buffer is never shrunk; cudaFreeHost is only called
+     * in free_etchash().
+     *
+     * Fallback: if cudaMallocHost() fails (headless CI nodes, no driver),
+     * fall back to regular malloc() so the miner still functions.  The
+     * bool flag pinned_alloc_ok lets free_etchash() call the right free.
+     * ------------------------------------------------------------------ */
+    if (g->pinned_light_cap < lgt_bytes) {
+        /* Release the previous buffer, if any. */
+        if (g->h_light_pinned) {
+            if (g->pinned_alloc_ok)
+                cudaFreeHost(g->h_light_pinned);
+            else
+                free(g->h_light_pinned);
+            g->h_light_pinned   = nullptr;
+            g->pinned_light_cap = 0;
+            g->pinned_alloc_ok  = false;
+        }
+
+        if (cudaMallocHost((void**)&g->h_light_pinned, lgt_bytes) == cudaSuccess) {
+            g->pinned_light_cap = lgt_bytes;
+            g->pinned_alloc_ok  = true;
+        } else {
+            /* Pinned allocation failed — fall back to pageable malloc(). */
+            applog(LOG_WARNING,
+                   "GPU #%d: cudaMallocHost light cache failed, "
+                   "falling back to pageable malloc", dev_id);
+            g->h_light_pinned = (uint8_t*)malloc(lgt_bytes);
+            if (!g->h_light_pinned) {
+                applog(LOG_ERR,
+                       "GPU #%d: malloc light cache failed (%llu bytes)",
+                       dev_id, (unsigned long long)lgt_bytes);
+                return false;
+            }
+            g->pinned_light_cap = lgt_bytes;
+            g->pinned_alloc_ok  = false;
+        }
+    }
+
+    /* Build the light cache into the (pinned or pageable) staging buffer. */
+    uint8_t seed[32];
+    etchash_epoch_seed(epoch, seed);
+    etchash_build_light_cache(g->h_light_pinned, lgt_bytes, seed);
+
+    /* ------------------------------------------------------------------
+     * Persistent GPU DAG allocation.
+     *
+     * Over-provision by ETCHASH_DAG_LOOKAHEAD_BYTES on the first call so
+     * the next two epoch transitions do not trigger cudaFree + cudaMalloc.
+     * cudaFree is synchronous: it blocks until all pending GPU work drains
+     * and then releases the buffer, idling the GPU for tens of milliseconds.
+     *
+     * We only reallocate when the new DAG genuinely exceeds the existing
+     * allocation — i.e. when the lookahead margin has been exhausted.
+     * ------------------------------------------------------------------ */
+    if (g->allocated_dag < dag_bytes) {
+        if (g->d_dag) {
+            applog(LOG_INFO,
+                   "GPU #%d: DAG allocation exhausted lookahead — "
+                   "reallocating (%.2f GB → %.2f GB)",
+                   dev_id,
+                   (double)g->allocated_dag  / 1073741824.0,
+                   (double)(dag_bytes + ETCHASH_DAG_LOOKAHEAD_BYTES) / 1073741824.0);
+            cudaFree(g->d_dag);
+            g->d_dag          = nullptr;
+            g->allocated_dag  = 0;
+        }
+
+        const uint64_t alloc_size = dag_bytes + ETCHASH_DAG_LOOKAHEAD_BYTES;
+        if (cudaMalloc((void**)&g->d_dag, alloc_size) != cudaSuccess) {
+            applog(LOG_ERR,
+                   "GPU #%d: cudaMalloc DAG failed (%.2f GB needed)",
+                   dev_id, (double)alloc_size / 1073741824.0);
+            return false;
+        }
+        g->allocated_dag = alloc_size;
+    }
+
+    /* Light cache device allocation — grows only when needed. */
     if (g->allocated_light < lgt_bytes) {
-        if (g->d_light) cudaFree(g->d_light);
+        if (g->d_light) {
+            cudaFree(g->d_light);
+            g->d_light         = nullptr;
+            g->allocated_light = 0;
+        }
         if (cudaMalloc((void**)&g->d_light, lgt_bytes) != cudaSuccess) {
             applog(LOG_ERR, "GPU #%d: cudaMalloc light cache failed", dev_id);
-            free(h_light);
             return false;
         }
         g->allocated_light = lgt_bytes;
     }
 
-    if (g->allocated_dag < dag_bytes) {
-        if (g->d_dag) cudaFree(g->d_dag);
-        if (cudaMalloc((void**)&g->d_dag, dag_bytes) != cudaSuccess) {
-            applog(LOG_ERR, "GPU #%d: cudaMalloc DAG failed (%.2f GB needed)",
-                   dev_id, (double)dag_bytes / 1073741824.0);
-            free(h_light);
-            return false;
-        }
-        g->allocated_dag = dag_bytes;
-    }
-
-    /* Allocate results buffer if needed. */
+    /* Results buffer — allocated once, never resized. */
     if (!g->d_results) {
-        if (cudaMalloc((void**)&g->d_results, sizeof(EtcSearch_results)) != cudaSuccess) {
+        if (cudaMalloc((void**)&g->d_results,
+                       sizeof(EtcSearch_results)) != cudaSuccess) {
             applog(LOG_ERR, "GPU #%d: cudaMalloc results failed", dev_id);
-            free(h_light);
             return false;
         }
     }
 
-    /* Upload light cache to device. */
-    cudaMemcpy(g->d_light, h_light, lgt_bytes, cudaMemcpyHostToDevice);
-    free(h_light);
+    /* Upload light cache — full PCIe bandwidth when h_light_pinned is
+     * page-locked; automatic bounce-buffer path otherwise (fallback).    */
+    cudaMemcpy(g->d_light, g->h_light_pinned, lgt_bytes,
+               cudaMemcpyHostToDevice);
 
     /* Upload device pointers to constant memory. */
     etchash_set_constants(g->d_dag,  dag_items,
                           g->d_light, lgt_items);
 
-    /* Generate DAG on device. */
+    /* Generate DAG on device (in-place, over the existing allocation). */
     etchash_generate_dag(dag_bytes,
                          /* blocks  */ 8192,
                          /* threads */ 128,
@@ -377,6 +477,17 @@ void free_etchash(int thr_id)
     if (g->d_dag)     { cudaFree(g->d_dag);     g->d_dag     = nullptr; }
     if (g->d_light)   { cudaFree(g->d_light);   g->d_light   = nullptr; }
     if (g->d_results) { cudaFree((void*)g->d_results); g->d_results = nullptr; }
+
+    /* Release the pinned (or pageable fallback) light cache staging buffer. */
+    if (g->h_light_pinned) {
+        if (g->pinned_alloc_ok)
+            cudaFreeHost(g->h_light_pinned);
+        else
+            free(g->h_light_pinned);
+        g->h_light_pinned   = nullptr;
+        g->pinned_light_cap = 0;
+        g->pinned_alloc_ok  = false;
+    }
 
     g->epoch           = -1;
     g->allocated_dag   = 0;
