@@ -2193,6 +2193,214 @@ extern bool opt_debug_threads;
 extern bool opt_hwmonitor;
 extern int num_cpus;
 
+/* -------------------------------------------------------------------------
+ * Thermal Governor
+ *
+ * Per-thread state.  Indexed by thr_id (same index space as gpus_intensity).
+ *
+ * gov_intensity_base[thr_id]:
+ *   UINT32_MAX  — thread is currently running at its normal throughput.
+ *   any other   — thread has been throttled; this is the value that was in
+ *                 gpus_intensity[thr_id] *before* throttling.  0 is a valid
+ *                 base (it means "algorithm default").
+ *
+ * gov_cool_ticks[thr_id]:
+ *   Count of consecutive governor polls where die temperature was strictly
+ *   below opt_gov_soft_limit.  Reaches GOV_COOL_TICKS → restore.
+ * ------------------------------------------------------------------------- */
+extern unsigned int opt_gov_soft_limit;
+
+static uint32_t gov_intensity_base[MAX_GPUS];
+static uint8_t  gov_cool_ticks[MAX_GPUS];
+
+/**
+ * gov_init() - Initialise governor per-thread state to "not throttled".
+ *
+ * Called once at the start of governor_thread() before the poll loop.
+ * Uses UINT32_MAX as a sentinel: valid gpus_intensity values are in
+ * [0, 2^31], so UINT32_MAX is unambiguous.
+ */
+static void gov_init(void)
+{
+	for (int i = 0; i < MAX_GPUS; i++) {
+		gov_intensity_base[i] = UINT32_MAX;
+		gov_cool_ticks[i]     = 0;
+	}
+}
+
+/**
+ * gov_throttle() - Step down one GPU's work-item count.
+ *
+ * @thr_id: mining thread index (== gpus_intensity index).
+ *
+ * Saves the current gpus_intensity[thr_id] into gov_intensity_base[thr_id]
+ * (including 0, which means "use algorithm default"), then halves it.
+ * The floor is GOV_MIN_THROUGHPUT; if the current effective throughput is
+ * already at or below that, no change is made to avoid spinning at zero.
+ *
+ * After writing gpus_intensity[], restart_threads() is called so that all
+ * mining threads pick up the new value at the top of their next scan loop.
+ * This is the same mechanism used when the user changes intensity at runtime.
+ */
+static void gov_throttle(int thr_id)
+{
+	/* Resolve the effective throughput: 0 means "algorithm default",
+	 * which is stored in cgpu->throughput by api_set_throughput().     */
+	uint32_t current = gpus_intensity[thr_id];
+	if (current == 0) {
+		if (thr_info && thr_id < MAX_GPUS)
+			current = thr_info[thr_id].gpu.throughput;
+	}
+
+	/* Guard: do not throttle if the thread has not yet set a throughput,
+	 * or if we are already at the minimum.                              */
+	if (current <= GOV_MIN_THROUGHPUT)
+		return;
+
+	uint32_t stepped = current / 2;
+	if (stepped < GOV_MIN_THROUGHPUT)
+		stepped = GOV_MIN_THROUGHPUT;
+
+	/* Save original *configured* value (may be 0 = "default"). */
+	gov_intensity_base[thr_id] = gpus_intensity[thr_id];
+	gov_cool_ticks[thr_id]     = 0;
+
+	/* Write the new lower intensity and signal kernels to restart. */
+	gpus_intensity[thr_id] = stepped;
+	restart_threads();
+
+	applog(LOG_WARNING,
+	       "GPU #%d: temp >= %u°C — throttling intensity %u → %u",
+	       device_map[thr_id], opt_gov_soft_limit, current, stepped);
+}
+
+/**
+ * gov_restore() - Restore a throttled GPU to its original throughput.
+ *
+ * @thr_id: mining thread index.
+ *
+ * Writes gov_intensity_base[thr_id] back into gpus_intensity[thr_id]
+ * (restoring the value that was there before throttling, including 0 for
+ * "use algorithm default"), resets the per-thread governor state to "not
+ * throttled", and calls restart_threads().
+ */
+static void gov_restore(int thr_id)
+{
+	uint32_t restored = gov_intensity_base[thr_id]; /* may be 0 */
+	gpus_intensity[thr_id]     = restored;
+	gov_intensity_base[thr_id] = UINT32_MAX;
+	gov_cool_ticks[thr_id]     = 0;
+	restart_threads();
+
+	applog(LOG_INFO,
+	       "GPU #%d: temp below %u°C for %d polls — restoring intensity",
+	       device_map[thr_id], opt_gov_soft_limit, GOV_COOL_TICKS);
+}
+
+/**
+ * governor_thread() - POSIX thread entry point for the thermal governor.
+ *
+ * @userdata: unused; pass NULL.
+ *
+ * Polls every GOV_POLL_INTERVAL_S seconds.  For each active mining thread:
+ *
+ *   temp >= opt_gov_soft_limit AND not throttled  → gov_throttle()
+ *   temp >= opt_gov_soft_limit AND already throttled → reset cool_ticks
+ *   temp <  opt_gov_soft_limit AND throttled      → increment cool_ticks;
+ *                                                    if >= GOV_COOL_TICKS,
+ *                                                    gov_restore()
+ *
+ * The thread exits cleanly when abort_flag is set.
+ *
+ * Design note: gpus_intensity[] is a 32-bit array written by the main thread
+ * at startup and by this thread at runtime.  Mining threads read it between
+ * kernel launches (in cuda_default_throughput()).  On x86-64 and aarch64,
+ * aligned 32-bit stores/loads are atomic at the hardware level; the
+ * deliberate data race here is benign — the worst outcome is one kernel
+ * launch executing with a stale intensity value.
+ */
+void *governor_thread(void *userdata)
+{
+	(void)userdata;
+
+	/* Early-exit when the feature is disabled or NVML is unavailable.  */
+	if (!hnvml || opt_gov_soft_limit == 0) {
+		if (opt_debug)
+			applog(LOG_DEBUG, "governor_thread: disabled, exiting");
+		return NULL;
+	}
+
+	gov_init();
+
+	if (!opt_quiet)
+		applog(LOG_INFO,
+		       "Thermal governor started: soft-limit %u°C, "
+		       "poll %ds, hysteresis %d polls",
+		       opt_gov_soft_limit,
+		       GOV_POLL_INTERVAL_S,
+		       GOV_COOL_TICKS);
+
+	while (!abort_flag) {
+		/* Interruptible sleep: wake every second so abort_flag is
+		 * checked promptly, but only act every GOV_POLL_INTERVAL_S.  */
+		for (int s = 0; s < GOV_POLL_INTERVAL_S && !abort_flag; s++)
+			usleep(1000000); /* 1 s; matches usleep usage in monitor_thread */
+
+		if (abort_flag)
+			break;
+
+		for (int thr_id = 0; thr_id < opt_n_threads; thr_id++) {
+			int dev_id = device_map[thr_id % MAX_GPUS];
+
+			unsigned int temp_c = 0;
+			if (nvml_get_tempC(hnvml, dev_id, &temp_c) != 0) {
+				/* NVML query failed for this device; skip it. */
+				if (opt_debug)
+					applog(LOG_DEBUG,
+					       "governor: nvml_get_tempC failed "
+					       "for GPU #%d", dev_id);
+				continue;
+			}
+
+			bool throttled = (gov_intensity_base[thr_id] != UINT32_MAX);
+
+			if ((unsigned int)temp_c >= opt_gov_soft_limit) {
+				/* Hot path. */
+				gov_cool_ticks[thr_id] = 0;
+				if (!throttled) {
+					gov_throttle(thr_id);
+				} else {
+					/* Already throttled; log periodically. */
+					if (opt_debug)
+						applog(LOG_DEBUG,
+						       "GPU #%d: still hot (%u°C), "
+						       "intensity already reduced",
+						       dev_id, temp_c);
+				}
+			} else {
+				/* Cool path. */
+				if (throttled) {
+					gov_cool_ticks[thr_id]++;
+					if (gov_cool_ticks[thr_id] >= GOV_COOL_TICKS)
+						gov_restore(thr_id);
+					else if (opt_debug)
+						applog(LOG_DEBUG,
+						       "GPU #%d: cooling (%u°C), "
+						       "tick %u/%u",
+						       dev_id, temp_c,
+						       gov_cool_ticks[thr_id],
+						       (uint8_t)GOV_COOL_TICKS);
+				}
+			}
+		}
+	}
+
+	if (opt_debug_threads)
+		applog(LOG_DEBUG, "governor_thread() exiting");
+
+	return NULL;
+}
+
 void *monitor_thread(void *userdata)
 {
 	int thr_id = -1;

@@ -197,6 +197,7 @@ int longpoll_thr_id = -1;
 int stratum_thr_id = -1;
 int api_thr_id = -1;
 int monitor_thr_id = -1;
+int governor_thr_id = -1;
 bool stratum_need_reset = false;
 volatile bool abort_flag = false;
 struct work_restart *work_restart = NULL;
@@ -218,6 +219,9 @@ double opt_max_rate = -1.;
 double opt_resume_temp = 0.;
 double opt_resume_diff = 0.;
 double opt_resume_rate = -1.;
+
+/* Thermal governor soft-limit (°C).  0 = disabled. */
+unsigned int opt_gov_soft_limit = 0;
 
 int opt_statsavg = 30;
 
@@ -326,7 +330,13 @@ Options:\n\
       --mem-clock=3505  Set the gpu memory max clock (346.72+ driver)\n\
       --gpu-clock=1150  Set the gpu engine max clock (346.72+ driver)\n\
       --pstate=0[,2]    Set the gpu power state (352.21+ driver)\n\
-      --plimit=100W     Set the gpu power limit (352.21+ driver)\n"
+      --plimit=100W     Set the gpu power limit (352.21+ driver)\n\
+      --gov-temp=78     Thermal governor soft-limit in °C (0 = disabled).\n\
+                        When a GPU reaches this temperature its work-item\n\
+                        count is halved to reduce power draw; throughput is\n\
+                        silently restored once the die cools below this\n\
+                        threshold for two consecutive polls.\n\
+                        Requires NVML (USE_WRAPNVML). Default: 0 (off).\n"
 #else /* via nvapi.dll */
 "\
       --mem-clock=3505  Set the gpu memory boost clock\n\
@@ -423,6 +433,7 @@ struct option options[] = {
 	{ "plimit", 1, NULL, 1073 },
 	{ "keep-clocks", 0, NULL, 1074 },
 	{ "tlimit", 1, NULL, 1075 },
+	{ "gov-temp", 1, NULL, 1076 },
 	{ "led", 1, NULL, 1080 },
 	{ "max-log-rate", 1, NULL, 1019 },
 #ifdef HAVE_SYSLOG_H
@@ -3098,6 +3109,16 @@ void parse_arg(int key, char *arg)
 			}
 		}
 		break;
+	case 1076: /* --gov-temp: thermal governor soft-limit in degrees C */
+		{
+			int v = atoi(arg);
+			if (v < 0 || v > 120) {
+				applog(LOG_ERR, "--gov-temp must be 0..120 (°C)");
+				show_usage_and_exit(1);
+			}
+			opt_gov_soft_limit = (unsigned int) v;
+		}
+		break;
 	case 1080: /* --led */
 		{
 			if (!opt_led_mode)
@@ -3673,7 +3694,7 @@ int main(int argc, char *argv[])
 	if (!work_restart)
 		return EXIT_CODE_SW_INIT_ERROR;
 
-	thr_info = (struct thr_info *)calloc(opt_n_threads + 5, sizeof(*thr));
+	thr_info = (struct thr_info *)calloc(opt_n_threads + 6, sizeof(*thr));
 	if (!thr_info)
 		return EXIT_CODE_SW_INIT_ERROR;
 
@@ -3803,6 +3824,22 @@ int main(int argc, char *argv[])
 			return EXIT_CODE_SW_INIT_ERROR;
 		}
 	}
+
+	/* Thermal governor — only active when --gov-temp=N is set and NVML
+	 * is available.  governor_thread() exits immediately when either
+	 * condition is not met, so it is safe to always create the thread.  */
+	if (hnvml && opt_gov_soft_limit > 0) {
+		governor_thr_id = opt_n_threads + 5;
+		thr = &thr_info[governor_thr_id];
+		thr->id = governor_thr_id;
+		thr->q = tq_new();
+		if (!thr->q)
+			return EXIT_CODE_SW_INIT_ERROR;
+		if (unlikely(pthread_create(&thr->pth, NULL, governor_thread, NULL))) {
+			applog(LOG_ERR, "Thermal governor thread create failed");
+			return EXIT_CODE_SW_INIT_ERROR;
+		}
+	}
 #endif
 
 	/* start mining threads */
@@ -3848,6 +3885,10 @@ int main(int argc, char *argv[])
 	if (monitor_thr_id != -1) {
 		pthread_join(thr_info[monitor_thr_id].pth, NULL);
 		//tq_free(thr_info[monitor_thr_id].q);
+	}
+
+	if (governor_thr_id != -1) {
+		pthread_join(thr_info[governor_thr_id].pth, NULL);
 	}
 
 	if (opt_debug)
