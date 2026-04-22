@@ -102,7 +102,23 @@ __device__ unsigned keccak_f800_progpow(
     return 0;
 }
 
-extern "C" __global__ void kawpow_search(
+/* __launch_bounds__(max_threads_per_block, min_blocks_per_sm)
+ *
+ * max_threads_per_block = KAWPOW_LANES * 4 = 64.
+ *   This is the fixed block size used by kawpow.cpp; making it explicit
+ *   here lets NVRTC's register allocator know the block is small and can
+ *   afford more registers per thread than it would assume conservatively.
+ *
+ * min_blocks_per_sm = 2.
+ *   Secondary guidance: aim for at least 2 blocks in flight per SM to
+ *   give the hardware scheduler enough warps to hide memory latency.
+ *   ProgPoW's PROGPOW_REGS = 32 mix registers means register pressure is
+ *   already moderate; 2 blocks is achievable without spilling on sm_61+.
+ *
+ * Without --gpu-architecture passed to NVRTC (see kawpow_compile_kernel),
+ * NVRTC would evaluate this hint against an old baseline register file.
+ * The arch flag and __launch_bounds__ are designed to work together.    */
+extern "C" __global__ __launch_bounds__(KAWPOW_LANES * 4, 2) void kawpow_search(
     const dag_t* __restrict__ g_dag,
     const uint32_t            dag_size,
     const uint32_t            header[8],
@@ -169,16 +185,36 @@ extern "C" __global__ void kawpow_search(
 
 bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
 {
-    auto it = s_module_cache.find(period);
+#ifndef HAVE_NVRTC
+    applog(LOG_ERR, "KawPow: NVRTC not available — cannot JIT-compile kernel");
+    (void)period; (void)mod_out;
+    return false;
+#else
+    /* ------------------------------------------------------------------
+     * Determine the current device's compute capability so that:
+     *   (a) NVRTC can evaluate __launch_bounds__ against the correct
+     *       register-file size for this architecture, and
+     *   (b) the module cache key is unique per (period, sm_version) so
+     *       heterogeneous GPU rigs don't share a stale-arch module.
+     * ------------------------------------------------------------------ */
+    int cur_dev = 0;
+    cudaGetDevice(&cur_dev);
+
+    int sm_major = 0, sm_minor = 0;
+    cudaDeviceGetAttribute(&sm_major, cudaDevAttrComputeCapabilityMajor, cur_dev);
+    cudaDeviceGetAttribute(&sm_minor, cudaDevAttrComputeCapabilityMinor, cur_dev);
+
+    /* Cache key: pack (period, sm_major, sm_minor) into one uint64_t.
+     * Periods are block/3; they fit in 48 bits.  SM is two decimal digits. */
+    const uint64_t cache_key = period * 10000ULL
+                             + (uint64_t)(sm_major * 100 + sm_minor);
+
+    auto it = s_module_cache.find(cache_key);
     if (it != s_module_cache.end()) {
         *mod_out = it->second;
         return true;
     }
 
-#ifndef HAVE_NVRTC
-    applog(LOG_ERR, "KawPow: NVRTC not available — cannot JIT-compile kernel");
-    return false;
-#else
     std::string src = kawpow_build_kernel_source(period);
 
     nvrtcProgram prog;
@@ -186,19 +222,28 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
                                        "kawpow_kernel.cu",
                                        0, nullptr, nullptr));
 
+    /* Pass --gpu-architecture so NVRTC evaluates __launch_bounds__ against
+     * the actual register file size of the target SM, not a generic baseline.
+     * compute_XY (virtual arch) is used rather than sm_XY (real arch) because
+     * NVRTC produces PTX which the driver then JITs to native ISA.           */
+    std::string arch_flag = "--gpu-architecture=compute_"
+                          + std::to_string(sm_major)
+                          + std::to_string(sm_minor);
+
     const char* opts[] = {
         "--std=c++14",
         "--use_fast_math",
         "--generate-line-info",
+        arch_flag.c_str(),
     };
-    nvrtcResult compile_res = nvrtcCompileProgram(prog, 3, opts);
+    nvrtcResult compile_res = nvrtcCompileProgram(prog, 4, opts);
     if (compile_res != NVRTC_SUCCESS) {
         size_t log_size = 0;
         nvrtcGetProgramLogSize(prog, &log_size);
         std::string log(log_size, '\0');
         nvrtcGetProgramLog(prog, &log[0]);
-        applog(LOG_ERR, "KawPow NVRTC compile error (period %llu):\n%s",
-               (unsigned long long)period, log.c_str());
+        applog(LOG_ERR, "KawPow NVRTC compile error (period %llu, sm_%d%d):\n%s",
+               (unsigned long long)period, sm_major, sm_minor, log.c_str());
         nvrtcDestroyProgram(&prog);
         return false;
     }
@@ -214,15 +259,15 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
     if (cu_res != CUDA_SUCCESS) {
         const char* msg = nullptr;
         cuGetErrorString(cu_res, &msg);
-        applog(LOG_ERR, "KawPow cuModuleLoadData failed (period %llu): %s",
-               (unsigned long long)period, msg ? msg : "unknown");
+        applog(LOG_ERR, "KawPow cuModuleLoadData failed (period %llu, sm_%d%d): %s",
+               (unsigned long long)period, sm_major, sm_minor, msg ? msg : "unknown");
         return false;
     }
 
-    s_module_cache[period] = mod;
+    s_module_cache[cache_key] = mod;
     *mod_out = mod;
-    applog(LOG_INFO, "KawPow: compiled kernel for period %llu",
-           (unsigned long long)period);
+    applog(LOG_INFO, "KawPow: compiled kernel for period %llu (sm_%d%d)",
+           (unsigned long long)period, sm_major, sm_minor);
     return true;
 #endif /* HAVE_NVRTC */
 }
