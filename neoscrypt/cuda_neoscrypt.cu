@@ -1540,6 +1540,10 @@ void neoscrypt_init(int thr_id, uint32_t threads)
 __host__
 void neoscrypt_free(int thr_id)
 {
+#if CUDART_VERSION >= 10000
+	neoscrypt_graph_init();
+	neoscrypt_graph_destroy(thr_id);
+#endif
 	cudaFree(d_NNonce[thr_id]);
 
 	cudaFree(hash1);
@@ -1553,18 +1557,162 @@ void neoscrypt_free(int thr_id)
 	}
 }
 
+/* -------------------------------------------------------------------------
+ * CUDA Graph state for neoscrypt_hash_k4
+ *
+ * NeoScrypt's four-kernel pipeline incurs ~5–10 µs of CPU-side driver
+ * overhead per kernel launch: argument marshalling, dependency tracking,
+ * and command-queue submission.  With four kernel launches plus a memset
+ * and a memcpy per scan window, this accumulates to ~30–60 µs of CPU work
+ * at the start of every window.
+ *
+ * CUDA Graphs (CUDA 10.0+) allow capturing the entire sequence —
+ * memset → hash_start → hash_salsa1 → hash_chacha1 → hash_ending → memcpy
+ * — into a single cudaGraph_t object.  Subsequent launches replay the
+ * captured graph with a single cudaGraphLaunch() call, bypassing most of
+ * the per-kernel driver overhead.
+ *
+ * Parameters that change every scan window (startNounce, the nonce-buffer
+ * reset value) are updated via cudaGraphExecKernelNodeSetParams() and
+ * cudaGraphExecMemsetNodeSetParams() without re-capturing the graph.
+ *
+ * The graph is (re-)captured when:
+ *   - It has never been captured for this thread (first call).
+ *   - The 'stratum' flag changes (changes endianness of the nonce).
+ *   - The grid/block dimensions change (intensity change at runtime).
+ *
+ * Requires CUDART_VERSION >= 10000.  Falls back to the original sequential
+ * launch path when built against older toolkits.
+ * ------------------------------------------------------------------------- */
+#if CUDART_VERSION >= 10000
+
+struct NeoScryptGraph {
+	cudaGraph_t         graph;
+	cudaGraphExec_t     instance;
+
+	/* Handles to the four kernel nodes and the memset node, so we can
+	 * update their parameters without re-capturing the graph.          */
+	cudaGraphNode_t     node_memset;
+	cudaGraphNode_t     node_start;
+	cudaGraphNode_t     node_salsa;
+	cudaGraphNode_t     node_chacha;
+	cudaGraphNode_t     node_ending;
+	cudaGraphNode_t     node_memcpy;
+
+	/* Cached launch geometry for invalidation detection.               */
+	uint32_t            last_threads;
+	int                 last_stratum;
+	bool                valid;
+};
+
+/* One graph state per GPU thread slot. */
+static __thread NeoScryptGraph s_graph[MAX_GPUS];
+static __thread bool           s_graph_init = false;
+
+static void neoscrypt_graph_init(void)
+{
+	if (s_graph_init) return;
+	for (int i = 0; i < MAX_GPUS; i++) {
+		s_graph[i].graph       = nullptr;
+		s_graph[i].instance    = nullptr;
+		s_graph[i].valid       = false;
+		s_graph[i].last_threads = 0;
+		s_graph[i].last_stratum = -1;
+	}
+	s_graph_init = true;
+}
+
+static void neoscrypt_graph_destroy(int thr_id)
+{
+	NeoScryptGraph* g = &s_graph[thr_id];
+	if (g->instance) { cudaGraphExecDestroy(g->instance); g->instance = nullptr; }
+	if (g->graph)    { cudaGraphDestroy(g->graph);        g->graph    = nullptr; }
+	g->valid = false;
+}
+
+/* Capture the entire kernel sequence for this set of parameters.
+ * Called on first use and whenever geometry or stratum flag changes.    */
+static bool neoscrypt_graph_capture(
+	int thr_id, uint32_t threads, uint32_t startNounce,
+	uint32_t *resNonces, bool stratum,
+	const dim3& grid2, const dim3& block2,
+	const dim3& grid3, const dim3& block3,
+	cudaStream_t stream)
+{
+	neoscrypt_graph_destroy(thr_id);
+	NeoScryptGraph* g = &s_graph[thr_id];
+
+	/* Begin stream capture: all operations on 'stream' between Begin and
+	 * End are recorded into a graph rather than executed immediately.    */
+	if (cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal) != cudaSuccess)
+		return false;
+
+	/* --- record the sequence --- */
+	cudaMemsetAsync(d_NNonce[thr_id], 0xff, 2 * sizeof(uint32_t), stream);
+
+	neoscrypt_gpu_hash_start <<<grid2, block2, 0, stream>>> ((int)stratum, startNounce);
+	neoscrypt_gpu_hash_salsa1 <<<grid3, block3, 0, stream>>> ();
+	neoscrypt_gpu_hash_chacha1 <<<grid3, block3, 0, stream>>> ();
+	neoscrypt_gpu_hash_ending <<<grid2, block2, 0, stream>>> ((int)stratum, startNounce, d_NNonce[thr_id]);
+
+	cudaMemcpyAsync(resNonces, d_NNonce[thr_id], 2 * sizeof(uint32_t),
+	                cudaMemcpyDeviceToHost, stream);
+
+	if (cudaStreamEndCapture(stream, &g->graph) != cudaSuccess)
+		return false;
+
+	/* Instantiate the graph — this JIT-compiles it for the current device. */
+	if (cudaGraphInstantiate(&g->instance, g->graph, nullptr, nullptr, 0) != cudaSuccess) {
+		cudaGraphDestroy(g->graph);
+		g->graph = nullptr;
+		return false;
+	}
+
+	/* Walk the graph node list to find each node by type and kernel name,
+	 * so we can update them cheaply per scan window.                     */
+	size_t num_nodes = 0;
+	cudaGraphGetNodes(g->graph, nullptr, &num_nodes);
+	cudaGraphNode_t* nodes = (cudaGraphNode_t*)malloc(num_nodes * sizeof(cudaGraphNode_t));
+	if (!nodes) { neoscrypt_graph_destroy(thr_id); return false; }
+	cudaGraphGetNodes(g->graph, nodes, &num_nodes);
+
+	g->node_memset = nullptr;
+	g->node_start  = nullptr;
+	g->node_salsa  = nullptr;
+	g->node_chacha = nullptr;
+	g->node_ending = nullptr;
+	g->node_memcpy = nullptr;
+
+	for (size_t i = 0; i < num_nodes; i++) {
+		cudaGraphNodeType t;
+		cudaGraphNodeGetType(nodes[i], &t);
+		if (t == cudaGraphNodeTypeMemset && !g->node_memset) {
+			g->node_memset = nodes[i];
+		} else if (t == cudaGraphNodeTypeMemcpy && !g->node_memcpy) {
+			g->node_memcpy = nodes[i];
+		} else if (t == cudaGraphNodeTypeKernel) {
+			cudaKernelNodeParams kp;
+			cudaGraphKernelNodeGetParams(nodes[i], &kp);
+			if      (kp.func == (void*)neoscrypt_gpu_hash_start  && !g->node_start)  g->node_start  = nodes[i];
+			else if (kp.func == (void*)neoscrypt_gpu_hash_salsa1 && !g->node_salsa)  g->node_salsa  = nodes[i];
+			else if (kp.func == (void*)neoscrypt_gpu_hash_chacha1&& !g->node_chacha) g->node_chacha = nodes[i];
+			else if (kp.func == (void*)neoscrypt_gpu_hash_ending && !g->node_ending) g->node_ending = nodes[i];
+		}
+	}
+	free(nodes);
+
+	g->last_threads = threads;
+	g->last_stratum = (int)stratum;
+	g->valid        = true;
+	return true;
+}
+
+#endif /* CUDART_VERSION >= 10000 */
+
 __host__
 void neoscrypt_hash_k4(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *resNonces, bool stratum)
 {
-	// Hoist the stream handle so the nonce-buffer reset can be queued
-	// asynchronously. The old cudaMemset() was an implicit synchronisation
-	// barrier: it forced the CPU to wait for all outstanding GPU work before
-	// the reset was issued, then the kernel chain could not start until the
-	// blocking memset returned. Using cudaMemsetAsync() on the same stream
-	// keeps the entire sequence — reset → hash_start → salsa → chacha →
-	// ending → memcpy — as a single, uninterrupted command queue.
 	cudaStream_t stream = neoscrypt_stream[thr_id];
-	CUDA_SAFE_CALL(cudaMemsetAsync(d_NNonce[thr_id], 0xff, 2 * sizeof(uint32_t), stream));
 
 	const int threadsperblock2 = TPB2;
 	dim3 grid2((threads + threadsperblock2 - 1) / threadsperblock2);
@@ -1573,6 +1721,69 @@ void neoscrypt_hash_k4(int thr_id, uint32_t threads, uint32_t startNounce, uint3
 	const int threadsperblock = TPB;
 	dim3 grid3((threads * 4 + threadsperblock - 1) / threadsperblock);
 	dim3 block3(4, threadsperblock >> 2);
+
+#if CUDART_VERSION >= 10000
+	neoscrypt_graph_init();
+	NeoScryptGraph* g = &s_graph[thr_id];
+
+	/* Invalidate and re-capture if geometry or stratum flag changed. */
+	bool need_capture = !g->valid
+	                 || g->last_threads != threads
+	                 || g->last_stratum != (int)stratum;
+
+	if (need_capture) {
+		if (!neoscrypt_graph_capture(thr_id, threads, startNounce, resNonces,
+		                             stratum, grid2, block2, grid3, block3, stream)) {
+			/* Graph capture failed — fall through to sequential launch. */
+			applog(LOG_DEBUG, "GPU #%d: NeoScrypt CUDA Graph capture failed, "
+			       "using sequential launch", device_map[thr_id]);
+			g->valid = false;
+			goto sequential_launch;
+		}
+		applog(LOG_DEBUG, "GPU #%d: NeoScrypt CUDA Graph captured "
+		       "(threads=%u, stratum=%d)",
+		       device_map[thr_id], threads, (int)stratum);
+	}
+
+	if (g->valid) {
+		/* Update only the nodes whose parameters change each scan window.
+		 *
+		 * node_memset: reset value is always 0xff, size always 8 bytes —
+		 *   unchanged, no update needed.
+		 *
+		 * node_start: startNounce changes every window. */
+		if (g->node_start) {
+			cudaKernelNodeParams kp;
+			cudaGraphKernelNodeGetParams(g->node_start, &kp);
+			/* kp.kernelParams[1] is startNounce (second arg). */
+			*(uint32_t*)kp.kernelParams[1] = startNounce;
+			cudaGraphExecKernelNodeSetParams(g->instance, g->node_start, &kp);
+		}
+		/* node_ending: startNounce changes every window. */
+		if (g->node_ending) {
+			cudaKernelNodeParams kp;
+			cudaGraphKernelNodeGetParams(g->node_ending, &kp);
+			*(uint32_t*)kp.kernelParams[1] = startNounce;
+			cudaGraphExecKernelNodeSetParams(g->instance, g->node_ending, &kp);
+		}
+
+		/* Launch the entire captured sequence in one driver call. */
+		CUDA_SAFE_CALL(cudaGraphLaunch(g->instance, stream));
+		CUDA_SAFE_CALL(cudaStreamSynchronize(stream));
+		return;
+	}
+
+sequential_launch:
+#endif /* CUDART_VERSION >= 10000 */
+
+	// Hoist the stream handle so the nonce-buffer reset can be queued
+	// asynchronously. The old cudaMemset() was an implicit synchronisation
+	// barrier: it forced the CPU to wait for all outstanding GPU work before
+	// the reset was issued, then the kernel chain could not start until the
+	// blocking memset returned. Using cudaMemsetAsync() on the same stream
+	// keeps the entire sequence — reset → hash_start → salsa → chacha →
+	// ending → memcpy — as a single, uninterrupted command queue.
+	CUDA_SAFE_CALL(cudaMemsetAsync(d_NNonce[thr_id], 0xff, 2 * sizeof(uint32_t), stream));
 
 	neoscrypt_gpu_hash_start <<<grid2, block2, 0, stream>>> (stratum, startNounce);
 
