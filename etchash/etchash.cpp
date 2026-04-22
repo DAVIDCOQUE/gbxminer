@@ -118,6 +118,41 @@ struct EtchashGpuState {
     uint8_t* h_light_pinned;     /* pinned host staging buffer (or malloc fallback) */
     uint64_t pinned_light_cap;   /* byte capacity of h_light_pinned */
     bool     pinned_alloc_ok;    /* true = cudaMallocHost succeeded */
+
+    /*
+     * Per-scan CUDA stream and pinned result buffer.
+     *
+     * All per-scan operations — header upload, target upload, result-counter
+     * reset, kernel launch, and D2H result copy — are enqueued on this single
+     * named stream.  This replaces the default-stream (nullptr) pattern and
+     * eliminates three synchronous CPU-blocking operations that previously
+     * occurred before each kernel launch:
+     *
+     *   Before: cudaMemcpyToSymbol(header)  ~10 µs CPU blocks
+     *           cudaMemcpyToSymbol(target)   ~10 µs CPU blocks
+     *           cudaMemset(results)           ~5 µs CPU blocks
+     *           kernel launch                 returns immediately
+     *           cudaDeviceSynchronize()       ~ms (kernel + CPU wakes)
+     *           cudaMemcpy D2H                ~5 µs CPU blocks
+     *
+     *   After:  cudaMemcpyToSymbolAsync(header, stream)  returns immediately
+     *           cudaMemcpyToSymbolAsync(target, stream)  returns immediately
+     *           cudaMemsetAsync(results, stream)          returns immediately
+     *           kernel launch on stream                   returns immediately
+     *           cudaMemcpyAsync D2H on stream             returns immediately
+     *           cudaStreamSynchronize(stream)             ~ms (kernel + D2H)
+     *
+     * The ~25 µs of blocking CPU overhead before each kernel launch is
+     * eliminated.  One cudaStreamSynchronize covers both kernel completion
+     * and the D2H result copy, removing a second synchronization round-trip.
+     *
+     * h_results_pinned must be pinned (cudaMallocHost) for cudaMemcpyAsync
+     * DeviceToHost to avoid falling back to synchronous behaviour.  It is
+     * allocated once and reused across scan windows.
+     */
+    cudaStream_t          stream;           /* named per-GPU CUDA stream */
+    EtcSearch_results*    h_results_pinned; /* pinned host result buffer */
+    bool                  stream_created;   /* lazy-init guard */
 };
 
 static EtchashGpuState s_gpu[MAX_GPUS];
@@ -136,6 +171,9 @@ static void etchash_init_states(void)
         s_gpu[i].h_light_pinned   = nullptr;
         s_gpu[i].pinned_light_cap = 0;
         s_gpu[i].pinned_alloc_ok  = false;
+        s_gpu[i].stream           = nullptr;
+        s_gpu[i].h_results_pinned = nullptr;
+        s_gpu[i].stream_created   = false;
     }
     s_initialized = true;
 }
@@ -416,50 +454,84 @@ int scanhash_etchash(int thr_id, struct work* work,
     EtchashGpuState* g = &s_gpu[thr_id];
     cudaSetDevice(dev_id);
 
-    /* Upload 32-byte header hash from work->data (first 8 words = 32 bytes). */
+    /* ------------------------------------------------------------------
+     * Lazy stream and pinned result buffer initialisation.
+     *
+     * Done here rather than in etchash_prepare_dag() to keep epoch-change
+     * logic separate from per-scan setup.  Both objects live for the miner
+     * lifetime and are freed in free_etchash().
+     * ------------------------------------------------------------------ */
+    if (!g->stream_created) {
+        if (cudaStreamCreate(&g->stream) != cudaSuccess) {
+            applog(LOG_ERR, "GPU #%d: ETCHash cudaStreamCreate failed", dev_id);
+            return -1;
+        }
+        if (cudaMallocHost((void**)&g->h_results_pinned,
+                           sizeof(EtcSearch_results)) != cudaSuccess) {
+            applog(LOG_ERR,
+                   "GPU #%d: ETCHash cudaMallocHost results failed", dev_id);
+            cudaStreamDestroy(g->stream);
+            g->stream = nullptr;
+            return -1;
+        }
+        g->stream_created = true;
+    }
+
+    /* ------------------------------------------------------------------
+     * Async per-scan pipeline.
+     *
+     * All five operations are enqueued onto g->stream before the CPU waits.
+     * Same-stream ordering guarantees the kernel sees the header and target
+     * written by the two MemcpyToSymbolAsync calls, and that the D2H copy
+     * reads the results the kernel has written.
+     * ------------------------------------------------------------------ */
+
+    /* 1. Upload 32-byte header hash from work->data. */
     etc_hash32_t header;
     memcpy(header.uint4s, work->data, sizeof(etc_hash32_t));
-    etchash_set_header(header);
+    etchash_set_header(header, g->stream);
 
-    /* Upload target: work->target[7] is the most-significant word of the
-     * 256-bit LE target.  The kernel compares a 64-bit big-endian value,
-     * so we take the upper 64 bits of the target. */
+    /* 2. Upload 64-bit difficulty target (upper 64 bits of 256-bit LE target). */
     uint64_t target64;
     memcpy(&target64, &work->target[6], sizeof(uint64_t));
-    etchash_set_target(target64);
+    etchash_set_target(target64, g->stream);
 
-    /* Zero the results counter. */
-    cudaMemset((void*)g->d_results, 0, sizeof(EtcSearch_results));
+    /* 3. Reset results counter asynchronously. */
+    cudaMemsetAsync((void*)g->d_results, 0, sizeof(EtcSearch_results), g->stream);
 
+    /* 4. Launch search kernel on the named stream. */
     const uint32_t start_nonce = work->nonces[0];
     const uint32_t nonces      = max_nonce - start_nonce;
+    const uint32_t block_size  = 128;
+    const uint32_t grid_size   = (nonces + block_size - 1) / block_size;
 
-    /* Grid: 128 threads/block, enough blocks to cover all nonces. */
-    const uint32_t block_size = 128;
-    const uint32_t grid_size  = (nonces + block_size - 1) / block_size;
-
-    etchash_run_search(grid_size, block_size, nullptr,
+    etchash_run_search(grid_size, block_size, g->stream,
                        g->d_results, (uint64_t)start_nonce);
 
-    /* Synchronise and collect results. */
-    cudaDeviceSynchronize();
+    /* 5. Async D2H: copy results to pinned host buffer.
+     *    cudaMemcpyAsync DeviceToHost requires pinned destination; h_results_pinned
+     *    satisfies this, avoiding a synchronous fallback. */
+    cudaMemcpyAsync(g->h_results_pinned, (void*)g->d_results,
+                    sizeof(EtcSearch_results),
+                    cudaMemcpyDeviceToHost, g->stream);
 
-    EtcSearch_results h_results;
-    cudaMemcpy(&h_results, (void*)g->d_results,
-               sizeof(EtcSearch_results), cudaMemcpyDeviceToHost);
+    /* Single synchronisation point: blocks until the entire stream — symbol
+     * writes, kernel, and D2H — has completed.  Replaces the previous
+     * cudaDeviceSynchronize() + synchronous cudaMemcpy pair. */
+    cudaStreamSynchronize(g->stream);
 
     *hashes_done = nonces;
 
-    if (h_results.count == 0)
+    if (g->h_results_pinned->count == 0)
         return 0;
 
     /* Report first solution. */
-    work->nonces[0] = start_nonce + h_results.result[0].gid;
+    work->nonces[0]    = start_nonce + g->h_results_pinned->result[0].gid;
     work->valid_nonces = 1;
 
     /* Store mix hash in extra[] for submission. */
-    memcpy(work->extra, h_results.result[0].mix,
-           sizeof(h_results.result[0].mix));
+    memcpy(work->extra, g->h_results_pinned->result[0].mix,
+           sizeof(g->h_results_pinned->result[0].mix));
 
     return 1;
 }
@@ -474,6 +546,10 @@ void free_etchash(int thr_id)
     const int dev_id = device_map[thr_id];
     cudaSetDevice(dev_id);
 
+    /* Drain the stream before freeing any buffers it may reference. */
+    if (g->stream_created && g->stream)
+        cudaStreamSynchronize(g->stream);
+
     if (g->d_dag)     { cudaFree(g->d_dag);     g->d_dag     = nullptr; }
     if (g->d_light)   { cudaFree(g->d_light);   g->d_light   = nullptr; }
     if (g->d_results) { cudaFree((void*)g->d_results); g->d_results = nullptr; }
@@ -487,6 +563,17 @@ void free_etchash(int thr_id)
         g->h_light_pinned   = nullptr;
         g->pinned_light_cap = 0;
         g->pinned_alloc_ok  = false;
+    }
+
+    /* Release per-scan stream and pinned result buffer. */
+    if (g->h_results_pinned) {
+        cudaFreeHost(g->h_results_pinned);
+        g->h_results_pinned = nullptr;
+    }
+    if (g->stream_created && g->stream) {
+        cudaStreamDestroy(g->stream);
+        g->stream         = nullptr;
+        g->stream_created = false;
     }
 
     g->epoch           = -1;

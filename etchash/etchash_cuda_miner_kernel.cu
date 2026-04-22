@@ -187,14 +187,22 @@ void etchash_get_constants(etc_hash128_t** dag,  uint32_t* dag_size,
     }
 }
 
-void etchash_set_header(etc_hash32_t header)
+void etchash_set_header(etc_hash32_t header, cudaStream_t stream)
 {
+    /* cudaMemcpyToSymbolAsync to constant memory:
+     * The CUDA runtime copies the 32-byte header value into an internal
+     * staging buffer before this call returns, so the caller's stack-allocated
+     * 'header' does not need to be pinned.  The copy is ordered before any
+     * subsequent work enqueued on 'stream', guaranteeing the kernel sees the
+     * updated value. */
     ETCHASH_CUDA_SAFE_CALL(
-        cudaMemcpyToSymbol(d_etc_header, &header, sizeof(etc_hash32_t)));
+        cudaMemcpyToSymbolAsync(d_etc_header, &header, sizeof(etc_hash32_t),
+                                0, cudaMemcpyHostToDevice, stream));
 }
 
-void etchash_set_target(uint64_t target)
+void etchash_set_target(uint64_t target, cudaStream_t stream)
 {
     ETCHASH_CUDA_SAFE_CALL(
-        cudaMemcpyToSymbol(d_etc_target, &target, sizeof(uint64_t)));
+        cudaMemcpyToSymbolAsync(d_etc_target, &target, sizeof(uint64_t),
+                                0, cudaMemcpyHostToDevice, stream));
 }
