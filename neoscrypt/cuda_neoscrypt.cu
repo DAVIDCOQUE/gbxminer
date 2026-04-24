@@ -1537,6 +1537,12 @@ void neoscrypt_init(int thr_id, uint32_t threads)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(Input, &Trans3, sizeof(uint2x4*), 0, cudaMemcpyHostToDevice));
 }
 
+/* Forward declarations — defined below in the CUDART_VERSION >= 10000 block. */
+#if CUDART_VERSION >= 10000
+static void neoscrypt_graph_init(void);
+static void neoscrypt_graph_destroy(int thr_id);
+#endif
+
 __host__
 void neoscrypt_free(int thr_id)
 {
