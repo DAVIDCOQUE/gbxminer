@@ -152,11 +152,18 @@ bool bench_algo_switch_next(int thr_id)
 	algo_hashrates[thr_id][prev_algo] = hashrate;
 
 	// capture temperature and power for efficiency calculation
-	struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
-	float temp = gpu_temp(cgpu);
-	unsigned int power_mw = gpu_power(cgpu);
-	algo_temps[thr_id][prev_algo] = temp;
-	algo_power[thr_id][prev_algo] = power_mw / 1000.0; // convert to watts
+	// gpu_temp() and gpu_power() are only available when NVML is present;
+	// on builds without USE_WRAPNVML the arrays stay at their zero-init
+	// values and the display function will omit those columns gracefully.
+#ifdef USE_WRAPNVML
+	{
+		struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
+		float temp          = gpu_temp(cgpu);
+		unsigned int power_mw = gpu_power(cgpu);
+		algo_temps[thr_id][prev_algo] = temp;
+		algo_power[thr_id][prev_algo] = power_mw / 1000.0; /* convert to watts */
+	}
+#endif /* USE_WRAPNVML */
 
 	// wait the other threads to display logs correctly
 	if (opt_n_threads > 1) {

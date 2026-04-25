@@ -37,7 +37,36 @@
 #define htole64(x) OSSwapHostToLittleInt64(x)
 #define be64toh(x) OSSwapBigToHostInt64(x)
 #define le64toh(x) OSSwapLittleToHostInt64(x)
-#endif
+
+#elif defined(_WIN32)
+/*
+ * Windows / MinGW endian shims.
+ *
+ * All Windows targets (x86, x86_64, ARM, ARM64) are little-endian, so
+ * htole* / le*toh are identity operations.  htobe* / be*toh require a
+ * byte-swap, implemented via GCC/Clang intrinsics available in every
+ * MinGW toolchain version that supports CUDA 12.x (GCC >= 10).
+ *
+ * These macros must not be defined when <winsock2.h> or <winsock.h> has
+ * already defined htons/htonl — those are different functions (network
+ * byte order helpers) and do not collide with the htobe*/htole* names.
+ */
+#define htobe16(x) __builtin_bswap16((uint16_t)(x))
+#define htole16(x) ((uint16_t)(x))
+#define be16toh(x) __builtin_bswap16((uint16_t)(x))
+#define le16toh(x) ((uint16_t)(x))
+
+#define htobe32(x) __builtin_bswap32((uint32_t)(x))
+#define htole32(x) ((uint32_t)(x))
+#define be32toh(x) __builtin_bswap32((uint32_t)(x))
+#define le32toh(x) ((uint32_t)(x))
+
+#define htobe64(x) __builtin_bswap64((uint64_t)(x))
+#define htole64(x) ((uint64_t)(x))
+#define be64toh(x) __builtin_bswap64((uint64_t)(x))
+#define le64toh(x) ((uint64_t)(x))
+
+#endif /* __APPLE__ / _WIN32 */
 
 class CScript;
 

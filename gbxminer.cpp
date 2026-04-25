@@ -2665,12 +2665,15 @@ pool_switched:
 static void show_version_and_exit(void)
 {
 	printf("%s v%s\n"
-#ifdef WIN32
+/* PTW32_VERSION_STRING is defined by pthreads-win32 (ptw32).  MinGW uses
+ * winpthreads instead, which does not define this symbol.  Guard on both
+ * WIN32 (we are on Windows) and PTW32_VERSION_STRING (ptw32 is the impl). */
+#if defined(WIN32) && defined(PTW32_VERSION_STRING)
 		"pthreads static %s\n"
 #endif
 		"%s\n",
 		PACKAGE_NAME, PACKAGE_VERSION,
-#ifdef WIN32
+#if defined(WIN32) && defined(PTW32_VERSION_STRING)
 		PTW32_VERSION_STRING,
 #endif
 		curl_version());
