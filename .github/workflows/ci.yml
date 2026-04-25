@@ -156,26 +156,24 @@ jobs:
           Write-Host "Downloading CUDA from: $cudaUrl"
           Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
 
-          $components = @(
-              "nvcc_${{ env.CUDA_VERSION }}",
-              "cudart_${{ env.CUDA_VERSION }}",
-              "cublas_${{ env.CUDA_VERSION }}",
-              "cublas_dev_${{ env.CUDA_VERSION }}",
-              "cuda_cudart_${{ env.CUDA_VERSION }}",
-              "cuda_nvcc_${{ env.CUDA_VERSION }}",
-              "cuda_libraries_${{ env.CUDA_VERSION }}",
-              "cuda_minimal_build_${{ env.CUDA_VERSION }}"
-          )
-          $installerArgs = @("-s") + $components
-          Start-Process -FilePath ".\$cudaInstaller" -ArgumentList $installerArgs -Wait -NoNewWindow
+          Write-Host "Installing CUDA $cudaVersion (silent, full)..."
+          Start-Process -FilePath ".\$cudaInstaller" -ArgumentList @("-s") -Wait -NoNewWindow
           Remove-Item $cudaInstaller
 
           $cudaReal = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+          if (-not (Test-Path $cudaReal)) {
+              Write-Error "CUDA install did not produce expected directory: $cudaReal"
+              exit 1
+          }
+          Write-Host "CUDA installed at: $cudaReal"
+
           $cudaJunction = "C:\cuda"
           New-Item -ItemType Junction -Path $cudaJunction -Target $cudaReal | Out-Null
+          Write-Host "Junction created: $cudaJunction -> $cudaReal"
+
           "$cudaJunction/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "CUDA_HOME=$cudaJunction"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
-          "CUDA_PATH=$cudaJunction"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
+          "CUDA_HOME=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
+          "CUDA_PATH=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
 
       - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
