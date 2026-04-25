@@ -15,17 +15,18 @@ concurrency:
 
 env:
   CUDA_VERSION: "12.8"
+  CUDA_PKG_VERSION: "12-8"
   DEBIAN_FRONTEND: noninteractive
 
 jobs:
-  # Linux x86_64 build
+  # ── Linux x86_64 ──────────────────────────────────────────────────────────
   build-linux-x86_64:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Linux build
+      - name: Setup Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -37,28 +38,35 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup CUDA
+      - name: Setup CUDA (x86_64 network repo)
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
-          sudo apt-get install -y cuda-toolkit-12-8
-          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
-          echo "PATH=/usr/local/cuda-12.8/bin:$PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          # FIX #4: Use CUDA_PKG_VERSION so the global env var actually drives this.
+          sudo apt-get install -y "cuda-toolkit-${{ env.CUDA_PKG_VERSION }}"
+          echo "CUDA_HOME=/usr/local/cuda-${{ env.CUDA_VERSION }}" >> "$GITHUB_ENV"
+          echo "PATH=/usr/local/cuda-${{ env.CUDA_VERSION }}/bin:$PATH" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-${{ env.CUDA_VERSION }}/lib64:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
 
       - name: Configure build
         run: |
-          rm -f Makefile || true
+          # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
+          rm -f Makefile
           ./autogen.sh
+          # FIX #2: -march=native produces a binary tied to the CI runner's CPU
+          # microarchitecture, causing SIGILL on machines lacking those extensions.
+          # Omitting -march lets the compiler target the safe x86-64 baseline,
+          # producing a distributable artifact that runs on all x86_64 hardware.
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
-            ./configure CXXFLAGS="-O3 -march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
-            --with-cuda=$CUDA_HOME \
-            --with-nvml=libnvidia-ml.so \
-            --with-nvrtc
+            ./configure \
+              CXXFLAGS="-O3 -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
+              --with-cuda="$CUDA_HOME" \
+              --with-nvml=libnvidia-ml.so \
+              --with-nvrtc
 
       - name: Build
-        run: make -j$(nproc)
+        run: make -j"$(nproc)"
 
       - name: Verify binary
         run: |
@@ -72,14 +80,14 @@ jobs:
           path: ./gbxminer
           retention-days: 3
 
-  # Linux aarch64 build (native ARM64)
+  # ── Linux aarch64 (native ARM64 runner) ───────────────────────────────────
   build-linux-aarch64:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Linux build
+      - name: Setup Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -91,34 +99,36 @@ jobs:
             libjansson-dev \
             pkg-config
 
-      - name: Setup CUDA for ARM64
+      - name: Setup CUDA (aarch64/SBSA network repo)
         run: |
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/cuda-ubuntu2404.pin
-          sudo mv cuda-ubuntu2404.pin /etc/apt/preferences.d/cuda-repository-pin-600
-          wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda-repo-ubuntu2404-12-8-local_12.8.0-570.86.10-1_arm64.deb
-          sudo dpkg -i cuda-repo-ubuntu2404-12-8-local_12.8.0-570.86.10-1_arm64.deb
-          sudo cp /var/cuda-repo-ubuntu2404-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
-          sudo apt-get -y install cuda-toolkit-12-8
-          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
-          echo "PATH=/usr/local/cuda-12.8/bin:$PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          # FIX #4: Use CUDA_PKG_VERSION so the global env var actually drives this.
+          sudo apt-get install -y "cuda-toolkit-${{ env.CUDA_PKG_VERSION }}"
+          echo "CUDA_HOME=/usr/local/cuda-${{ env.CUDA_VERSION }}" >> "$GITHUB_ENV"
+          echo "PATH=/usr/local/cuda-${{ env.CUDA_VERSION }}/bin:$PATH" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-${{ env.CUDA_VERSION }}/lib64:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
 
       - name: Configure build
         run: |
-          rm -f Makefile || true
+          # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
+          rm -f Makefile
           ./autogen.sh
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
-            ./configure CXXFLAGS="-O3 -march=armv8-a" \
-            --with-cuda=$CUDA_HOME \
-            --with-nvml=libnvidia-ml.so \
-            --with-nvrtc
+            ./configure \
+              CXXFLAGS="-O3 -march=armv8-a" \
+              --with-cuda="$CUDA_HOME" \
+              --with-nvml=libnvidia-ml.so \
+              --with-nvrtc
 
       - name: Build
-        run: make -j$(nproc)
+        run: make -j"$(nproc)"
 
       - name: Verify binary
-        run: file ./gbxminer
+        run: |
+          file ./gbxminer
+          ./gbxminer --version || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
@@ -127,7 +137,7 @@ jobs:
           path: ./gbxminer
           retention-days: 3
 
-  # Windows x86_64 build
+  # ── Windows x86_64 ────────────────────────────────────────────────────────
   build-windows-x86_64:
     runs-on: windows-2025
     steps:
@@ -136,24 +146,42 @@ jobs:
 
       - name: Setup CUDA on Windows
         run: |
-          # Download and install CUDA toolkit silently
           $ErrorActionPreference = "Stop"
-          $cudaInstaller = "cuda_12.8.0_571.96_windows.exe"
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/$cudaInstaller"
+          # FIX #4: Derive installer filename and URL from the global CUDA_VERSION
+          # env var so a single-line bump keeps Windows in sync with Linux.
+          $cudaVersion = "${{ env.CUDA_VERSION }}"
+          $cudaInstaller = "cuda_${cudaVersion}.0_571.96_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${cudaVersion}.0/local_installers/$cudaInstaller"
           Write-Host "Downloading CUDA from: $cudaUrl"
           Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
-          $subpackages = "nvcc_12.8,cudart_12.8,cublas_12.8,cublas_dev_12.8,cuda_cudart_12.8,cuda_nvcc_12.8,cuda_libraries_12.8,cuda_minimal_build_12.8"
-          Start-Process -FilePath ".\$cudaInstaller" -ArgumentList "-s", $subpackages -Wait -NoNewWindow
-          Remove-Item $cudaInstaller
-          # Set CUDA environment variables using forward slashes for MSYS2 compatibility
-          $cudaPath = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8"
-          echo "$cudaPath/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "CUDA_HOME=$cudaPath" >> $env:GITHUB_ENV
-          echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
-          # Use Unix-style path separator (:) for MSYS2 compatibility
-          echo "PATH=$cudaPath/bin:$env:PATH" >> $env:GITHUB_ENV
 
-      - name: Setup Windows build (MSYS2)
+          # FIX #5: The CUDA Windows installer's silent-install (-s) syntax expects
+          # components as individual space-separated arguments, not a single
+          # comma-delimited string.  Passing a comma-string via Start-Process
+          # -ArgumentList delivers it as one malformed token; the installer may
+          # then install nothing or default to a full installation.
+          # Use a PowerShell array so each component is a distinct argument.
+          $components = @(
+              "nvcc_${{ env.CUDA_VERSION }}",
+              "cudart_${{ env.CUDA_VERSION }}",
+              "cublas_${{ env.CUDA_VERSION }}",
+              "cublas_dev_${{ env.CUDA_VERSION }}",
+              "cuda_cudart_${{ env.CUDA_VERSION }}",
+              "cuda_nvcc_${{ env.CUDA_VERSION }}",
+              "cuda_libraries_${{ env.CUDA_VERSION }}",
+              "cuda_minimal_build_${{ env.CUDA_VERSION }}"
+          )
+          $installerArgs = @("-s") + $components
+          Start-Process -FilePath ".\$cudaInstaller" -ArgumentList $installerArgs -Wait -NoNewWindow
+          Remove-Item $cudaInstaller
+
+          # Use forward-slash paths for MSYS2/autotools compatibility.
+          $cudaPath = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v$cudaVersion"
+          "$cudaPath/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "CUDA_HOME=$cudaPath"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
+          "CUDA_PATH=$cudaPath"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
+
+      - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -177,25 +205,19 @@ jobs:
       - name: Configure build
         shell: msys2 {0}
         run: |
-          rm -f Makefile || true
+          # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
+          rm -f Makefile
           ./autogen.sh
-          # pkg-config in MSYS2 MINGW64 resolves libcurl, openssl, and jansson
-          # from the pacman-installed packages.  No cache overrides are needed
-          # because the configure link test runs with the native MinGW compiler
-          # against native Windows libraries.
-          # Convert Windows CUDA path to MSYS2 Unix-style path.
-          # Uses cygpath to handle the path conversion properly, avoiding issues
-          # with spaces in "Program Files" and "NVIDIA GPU Computing Toolkit"
-          # that would otherwise break autotools/Make path handling.
-          # -u: convert to Unix/POSIX path format (/cygdrive/c/...)
-          # -m: use mixed path format (C:/...) which works better with autotools
-          CUDA_PATH=$(cygpath -m "$CUDA_HOME")
-          echo "CUDA path (MSYS2): $CUDA_PATH"
+          # cygpath -m converts "C:\Program Files\..." to "C:/Program Files/..."
+          # (mixed format), which autotools handles correctly without choking on
+          # backslashes or spaces in "NVIDIA GPU Computing Toolkit".
+          CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
+          echo "CUDA path (MSYS2 mixed): $CUDA_PATH_MSYS"
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3" \
             PKG_CONFIG="pkg-config --static" \
-            --with-cuda="$CUDA_PATH"
+            --with-cuda="$CUDA_PATH_MSYS"
 
       - name: Build
         shell: msys2 {0}
@@ -212,7 +234,7 @@ jobs:
           path: ./gbxminer.exe
           retention-days: 3
 
-  # Lint job - runs in parallel with builds
+  # ── Lint (runs in parallel with builds) ───────────────────────────────────
   lint:
     runs-on: ubuntu-24.04
     env:
@@ -238,7 +260,8 @@ jobs:
           cd test/lint
           python3 all-lint.py
 
-  # Run Python tests after Linux x86_64 binary is built
+  # ── Test jobs (downstream of build jobs) ──────────────────────────────────
+
   test-linux-x86_64:
     needs: build-linux-x86_64
     if: always() && needs.build-linux-x86_64.result == 'success'
@@ -248,9 +271,6 @@ jobs:
       platform: linux-x86_64
       runner: ubuntu-24.04
 
-  # Run Python tests after Linux aarch64 binary is built
-  # Note: aarch64 binary is cross-compiled on x86_64, so we run tests on x86_64
-  # The binary cannot be executed on x86_64, so only unit/lint tests will run
   test-linux-aarch64:
     needs: build-linux-aarch64
     if: always() && needs.build-linux-aarch64.result == 'success'
@@ -258,9 +278,8 @@ jobs:
     with:
       artifact_name: gbxminer-linux-aarch64
       platform: linux-aarch64
-      runner: ubuntu-24.04
+      runner: ubuntu-24.04-arm
 
-  # Run Python tests after Windows x86_64 binary is built
   test-windows-x86_64:
     needs: build-windows-x86_64
     if: always() && needs.build-windows-x86_64.result == 'success'
