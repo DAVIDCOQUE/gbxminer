@@ -486,6 +486,9 @@ extern struct thr_info *thr_info;
 extern int longpoll_thr_id;
 extern int stratum_thr_id;
 extern int api_thr_id;
+extern int monitor_thr_id;
+extern int governor_thr_id;       /* thermal governor thread; -1 if disabled */
+extern unsigned int opt_gov_soft_limit; /* --gov-temp=N; 0 = disabled */
 extern volatile bool abort_flag;
 extern struct work_restart *work_restart;
 extern bool opt_trust_pool;

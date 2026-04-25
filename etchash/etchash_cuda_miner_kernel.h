@@ -89,11 +89,26 @@ void etchash_set_constants(etc_hash128_t* dag,  uint32_t dag_size,
 void etchash_get_constants(etc_hash128_t** dag,  uint32_t* dag_size,
                            etc_hash64_t**  light, uint32_t* light_size);
 
-/** Upload 32-byte block header to constant memory. */
-void etchash_set_header(etc_hash32_t header);
+/**
+ * Upload 32-byte block header to constant memory asynchronously.
+ *
+ * @param header  32-byte header value (copied into an internal CUDA staging
+ *                buffer before this function returns; caller's copy need not
+ *                be pinned).
+ * @param stream  CUDA stream to enqueue the copy on.  Must be the same
+ *                stream as the subsequent etchash_run_search() call so that
+ *                the header is visible to the kernel (same-stream ordering
+ *                guarantees execution order).
+ */
+void etchash_set_header(etc_hash32_t header, cudaStream_t stream);
 
-/** Upload 64-bit difficulty target to constant memory. */
-void etchash_set_target(uint64_t target);
+/**
+ * Upload 64-bit difficulty target to constant memory asynchronously.
+ *
+ * @param target  64-bit big-endian boundary value.
+ * @param stream  CUDA stream (must match etchash_run_search() stream).
+ */
+void etchash_set_target(uint64_t target, cudaStream_t stream);
 
 /**
  * Launch the search kernel.

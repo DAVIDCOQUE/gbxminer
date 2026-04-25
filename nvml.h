@@ -223,6 +223,40 @@ int gpu_info(struct cgpu_info *gpu);
 
 int gpu_vendor(uint8_t pci_bus_id, char *vendorname);
 
+/* ---------- Thermal Governor -------------------------------------------- *
+ *
+ * The governor polls die temperature via NVML every GOV_POLL_INTERVAL_S
+ * seconds.  When a GPU's temperature reaches opt_gov_soft_limit (set by
+ * --gov-temp=N), gpus_intensity[thr_id] is halved so each kernel invocation
+ * completes sooner, reducing sustained power draw and letting the die cool
+ * without halting mining entirely.  Once GOV_COOL_TICKS consecutive polls
+ * show the temperature below opt_gov_soft_limit the original throughput is
+ * silently restored.
+ *
+ * opt_gov_soft_limit == 0 disables the governor (default).
+ * libnvml absent       → governor_thread() is a no-op.
+ * No consensus or stratum logic is touched by this path.
+ * ------------------------------------------------------------------------- */
+
+/** Minimum work-items the governor will schedule.  Never step below this. */
+#define GOV_MIN_THROUGHPUT  256U
+
+/** Consecutive below-limit polls required before restoring full throughput. */
+#define GOV_COOL_TICKS      2
+
+/** Seconds between temperature polls. */
+#define GOV_POLL_INTERVAL_S 2
+
+/**
+ * governor_thread() - POSIX thread entry point for the thermal governor.
+ *
+ * @userdata: unused (matches pthread_create signature); pass NULL.
+ *
+ * Returns NULL on exit.  The thread runs until abort_flag is set.
+ * Only call this when hnvml != NULL and opt_gov_soft_limit > 0.
+ */
+void *governor_thread(void *userdata);
+
 /* nvapi functions */
 #ifdef WIN32
 int nvapi_init();

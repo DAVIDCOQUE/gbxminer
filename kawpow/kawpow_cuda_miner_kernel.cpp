@@ -102,44 +102,212 @@ __device__ unsigned keccak_f800_progpow(
     return 0;
 }
 
-extern "C" __global__ void kawpow_search(
+/* __launch_bounds__(max_threads_per_block, min_blocks_per_sm)
+ *
+ * max_threads_per_block = KAWPOW_LANES * 4 = 64.
+ *   This is the fixed block size used by kawpow.cpp; making it explicit
+ *   here lets NVRTC's register allocator know the block is small and can
+ *   afford more registers per thread than it would assume conservatively.
+ *
+ * min_blocks_per_sm = 2.
+ *   Secondary guidance: aim for at least 2 blocks in flight per SM to
+ *   give the hardware scheduler enough warps to hide memory latency.
+ *   ProgPoW's PROGPOW_REGS = 32 mix registers means register pressure is
+ *   already moderate; 2 blocks is achievable without spilling on sm_61+.
+ *
+ * Without --gpu-architecture passed to NVRTC (see kawpow_compile_kernel),
+ * NVRTC would evaluate this hint against an old baseline register file.
+ * The arch flag and __launch_bounds__ are designed to work together.    */
+
+/* ------------------------------------------------------------------ */
+/*  Keccak-f[800]                                                       */
+/* ------------------------------------------------------------------ */
+
+/* KawPoW uses Keccak-f[800]: a 25 × uint32 (800-bit) state with 22 rounds.
+ * This is distinct from Keccak-f[1600] used in Ethereum's SHA3.
+ *
+ * Reference: NIST Keccak reference, "Keccak-f[800]" variant.
+ * The round constants below are the low 32 bits of the Keccak-f[1600]
+ * constants (which are defined up to 64 bits), truncated to 32 bits.   */
+
+__device__ __forceinline__ uint32_t keccak_rotl32(uint32_t x, uint32_t n)
+{
+    return (x << n) | (x >> (32u - n));
+}
+
+__device__ void keccak_f800(uint32_t st[25])
+{
+    /* 22 round constants for Keccak-f[800] (low 32 bits of f[1600] RC). */
+    const uint32_t RC[22] = {
+        0x00000001u, 0x00008082u, 0x0000808au, 0x80008000u,
+        0x0000808bu, 0x80000001u, 0x80008081u, 0x00008009u,
+        0x0000008au, 0x00000088u, 0x80008009u, 0x8000000au,
+        0x8000808bu, 0x0000008bu, 0x00008089u, 0x00008003u,
+        0x00008002u, 0x00000080u, 0x0000800au, 0x8000000au,
+        0x8000808au, 0x80000001u
+    };
+    /* Rho rotation offsets (mod 32), ordered by Pi permutation index.  */
+    const uint32_t ROTC[24] = {
+         1u,  3u,  6u, 10u, 15u, 21u, 28u, 36u % 32u,
+        45u % 32u, 55u % 32u,  2u, 14u,
+        27u, 41u % 32u, 56u % 32u,  8u,
+        25u, 43u % 32u, 62u % 32u, 18u,
+        39u % 32u, 61u % 32u, 20u, 44u % 32u
+    };
+    /* Pi lane permutation indices.                                     */
+    const int PILN[24] = {
+        10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4,
+        15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1
+    };
+
+    uint32_t bc[5], t;
+    for (int r = 0; r < 22; r++) {
+        /* Theta */
+        for (int i = 0; i < 5; i++)
+            bc[i] = st[i] ^ st[i+5] ^ st[i+10] ^ st[i+15] ^ st[i+20];
+        for (int i = 0; i < 5; i++) {
+            t = bc[(i+4)%5] ^ keccak_rotl32(bc[(i+1)%5], 1u);
+            for (int j = 0; j < 25; j += 5)
+                st[j+i] ^= t;
+        }
+        /* Rho-Pi */
+        t = st[1];
+        for (int i = 0; i < 24; i++) {
+            const int j = PILN[i];
+            bc[0] = st[j];
+            st[j] = keccak_rotl32(t, ROTC[i]);
+            t = bc[0];
+        }
+        /* Chi */
+        for (int j = 0; j < 25; j += 5) {
+            uint32_t b[5];
+            for (int i = 0; i < 5; i++) b[i] = st[j+i];
+            for (int i = 0; i < 5; i++)
+                st[j+i] ^= (~b[(i+1)%5]) & b[(i+2)%5];
+        }
+        /* Iota */
+        st[0] ^= RC[r];
+    }
+}
+
+/* KawPoW Keccak wrapper: pack header[8] || nonce || digest[8] into a
+ * zeroed 25-word state, run 22 rounds, return first 8 output words.
+ *
+ * Used twice per nonce:
+ *   seed  = keccak_f800_progpow(header, nonce, {0...0})
+ *   final = keccak_f800_progpow(header, nonce, mix_hash)             */
+__device__ void keccak_f800_progpow(
+    const uint32_t header[8],
+    const uint64_t nonce,
+    const uint32_t digest[8],
+    uint32_t       out[8])
+{
+    uint32_t st[25];
+    #pragma unroll
+    for (int i = 0; i < 25; i++) st[i] = 0u;
+    #pragma unroll
+    for (int i = 0; i < 8;  i++) st[i]      = header[i];
+    st[8]  = (uint32_t)(nonce);
+    st[9]  = (uint32_t)(nonce >> 32u);
+    #pragma unroll
+    for (int i = 0; i < 8;  i++) st[10 + i] = digest[i];
+    keccak_f800(st);
+    #pragma unroll
+    for (int i = 0; i < 8;  i++) out[i]     = st[i];
+}
+
+/* ------------------------------------------------------------------ */
+/*  KISS-99 PRNG + fill_mix                                             */
+/* ------------------------------------------------------------------ */
+
+/* KISS-99: Marsaglia's "Keep It Simple Stupid" 99-edition PRNG.
+ * Used by fill_mix() to generate the initial mix array from the seed.  */
+typedef struct { uint32_t z, w, jsr, jcong; } kiss99_t;
+
+__device__ __forceinline__ uint32_t kiss99(kiss99_t *st)
+{
+    st->z    = 36969u * (st->z    & 0xFFFFu) + (st->z    >> 16u);
+    st->w    = 18000u * (st->w    & 0xFFFFu) + (st->w    >> 16u);
+    const uint32_t mwc = (st->z << 16u) + st->w;
+    st->jsr ^= st->jsr << 17u;
+    st->jsr ^= st->jsr >> 13u;
+    st->jsr ^= st->jsr <<  5u;
+    st->jcong = 69069u * st->jcong + 1234567u;
+    return (mwc ^ st->jcong) + st->jsr;
+}
+
+/* Seed KISS-99 from the 64-bit Keccak seed and the lane index, then fill
+ * mix[PROGPOW_REGS] with pseudo-random 32-bit values.  Each lane in the
+ * warp gets a distinct sequence because lane_id is mixed into the state.*/
+__device__ void fill_mix(const uint64_t seed, const uint32_t lane_id,
+                          uint32_t mix[PROGPOW_REGS])
+{
+    kiss99_t st;
+    st.z     = fnv1a(0x811c9dc5u, (uint32_t)(seed));
+    st.w     = fnv1a(st.z,        (uint32_t)(seed >> 32u));
+    st.jsr   = fnv1a(st.w,        lane_id);
+    st.jcong = fnv1a(st.jsr,      lane_id);
+    #pragma unroll
+    for (int i = 0; i < PROGPOW_REGS; i++)
+        mix[i] = kiss99(&st);
+}
+
+/* ------------------------------------------------------------------ */
+/*  kawpow_search kernel                                                 */
+/* ------------------------------------------------------------------ */
+
+extern "C" __global__ __launch_bounds__(KAWPOW_LANES * 4, 2) void kawpow_search(
     const dag_t* __restrict__ g_dag,
     const uint32_t            dag_size,
     const uint32_t            header[8],
     const uint64_t            target,
     const uint64_t            start_nonce,
-    volatile KawpowResults*    g_output)
+    volatile KawpowResults*   g_output)
 {
-    const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint32_t gid     = blockIdx.x * blockDim.x + threadIdx.x;
     const uint32_t lane_id = threadIdx.x & (KAWPOW_LANES - 1);
-    const uint64_t nonce = start_nonce + gid;
 
-    // Build c_dag from L1 cache
+    /* ProgPoW is warp-collaborative: all KAWPOW_LANES threads in a group
+     * process the same nonce but hold different lanes of the mix array.
+     * The warp index within the grid (gid / KAWPOW_LANES) uniquely
+     * identifies the nonce for this group.                              */
+    const uint64_t nonce = start_nonce + (uint64_t)(gid / KAWPOW_LANES);
+
+    /* Load the DAG cache into shared memory.  All threads in the block
+     * collaborate on this; __syncthreads() ensures visibility before use.*/
     __shared__ uint32_t c_dag[PROGPOW_CACHE_WORDS];
-    {
-        uint32_t prog_seed_lo = (uint32_t)(start_nonce / PROGPOW_PERIOD);
-        for (uint32_t i = threadIdx.x;
-             i < PROGPOW_CACHE_WORDS;
-             i += blockDim.x)
-        {
-            c_dag[i] = g_dag[i % dag_size].s[i % PROGPOW_DAG_LOADS];
-        }
-    }
+    for (uint32_t i = threadIdx.x; i < PROGPOW_CACHE_WORDS; i += blockDim.x)
+        c_dag[i] = g_dag[i % dag_size].s[i % PROGPOW_DAG_LOADS];
     __syncthreads();
 
-    uint32_t mix[PROGPOW_REGS];
-    // Initialise mix from nonce (simplified seed)
-    #pragma unroll
-    for (int i = 0; i < PROGPOW_REGS; i++)
-        mix[i] = (uint32_t)(nonce >> (i & 1 ? 32 : 0)) ^ (uint32_t)i;
+    /* --- Seed hash --------------------------------------------------- *
+     * seed = keccak_f800(header || nonce || {0...0})                    *
+     * Produces 8 words; seed[0:1] seeds the per-lane KISS-99 PRNG.     */
+    uint32_t seed[8];
+    {
+        uint32_t zeros[8];
+        #pragma unroll
+        for (int i = 0; i < 8; i++) zeros[i] = 0u;
+        keccak_f800_progpow(header, nonce, zeros, seed);
+    }
 
-    // Run the period-specific ProgPoW loop
+    /* --- Mix initialisation ------------------------------------------ *
+     * Each lane gets a distinct mix[PROGPOW_REGS] via KISS-99.          */
+    const uint64_t seed64 = (uint64_t)seed[0] | ((uint64_t)seed[1] << 32u);
+    uint32_t mix[PROGPOW_REGS];
+    fill_mix(seed64, lane_id, mix);
+
+    /* --- ProgPoW inner loop ------------------------------------------ *
+     * Period-specific progPowLoop() is prepended by kawpow_build_kernel_source()
+     * via ProgPow::getKern().  PROGPOW_CNT_DAG = 64 iterations.        */
     bool hack_false = false;
     #pragma unroll 1
     for (uint32_t loop = 0; loop < PROGPOW_CNT_DAG; loop++)
         progPowLoop(loop, mix, g_dag, c_dag, hack_false);
 
-    // Reduce mix to 8 words via FNV1a
+    /* --- Mix reduction ----------------------------------------------- *
+     * Reduce mix[PROGPOW_REGS=32] → mix_hash[8] via FNV-1a.            *
+     * 4 mix words fold into each mix_hash word.                         */
     uint32_t mix_hash[8];
     #pragma unroll
     for (int i = 0; i < 8; i++) {
@@ -148,16 +316,26 @@ extern "C" __global__ void kawpow_search(
             mix_hash[i] = fnv1a(mix_hash[i], mix[j]);
     }
 
-    // Final hash: simplified boundary check
-    uint32_t result = mix_hash[0];
-    // TODO: full keccak_f800 seed+mix -> final hash, compare to target
-    if ((uint64_t)result > target) return;
+    /* --- Final hash -------------------------------------------------- *
+     * final = keccak_f800(header || nonce || mix_hash)                  *
+     * Boundary check: first 64 bits of final hash ≤ target.            *
+     * This matches the KawPoW / Ravencoin consensus rule.               */
+    uint32_t final_hash[8];
+    keccak_f800_progpow(header, nonce, mix_hash, final_hash);
 
-    uint32_t index = atomicInc((uint32_t*)&g_output->count, 0xffffffffu);
-    if (index >= KAWPOW_MAX_RESULTS) return;
-    g_output->result[index].gid = gid;
+    const uint64_t result64 =
+        (uint64_t)final_hash[0] | ((uint64_t)final_hash[1] << 32u);
+    if (result64 > target) return;
+
+    /* --- Record solution --------------------------------------------- *
+     * Store warp_id (= gid / KAWPOW_LANES) so the host recovers:
+     *   winning_nonce = start_nonce + result.gid                        */
+    const uint32_t warp_id = gid / KAWPOW_LANES;
+    const uint32_t slot = atomicInc((uint32_t*)&g_output->count, 0xffffffffu);
+    if (slot >= KAWPOW_MAX_RESULTS) return;
+    g_output->result[slot].gid = warp_id;
     #pragma unroll
-    for (int i = 0; i < 8; i++) g_output->result[index].mix[i] = mix_hash[i];
+    for (int i = 0; i < 8; i++) g_output->result[slot].mix[i] = mix_hash[i];
 }
 )";
     return src;
@@ -169,16 +347,36 @@ extern "C" __global__ void kawpow_search(
 
 bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
 {
-    auto it = s_module_cache.find(period);
+#ifndef HAVE_NVRTC
+    applog(LOG_ERR, "KawPow: NVRTC not available — cannot JIT-compile kernel");
+    (void)period; (void)mod_out;
+    return false;
+#else
+    /* ------------------------------------------------------------------
+     * Determine the current device's compute capability so that:
+     *   (a) NVRTC can evaluate __launch_bounds__ against the correct
+     *       register-file size for this architecture, and
+     *   (b) the module cache key is unique per (period, sm_version) so
+     *       heterogeneous GPU rigs don't share a stale-arch module.
+     * ------------------------------------------------------------------ */
+    int cur_dev = 0;
+    cudaGetDevice(&cur_dev);
+
+    int sm_major = 0, sm_minor = 0;
+    cudaDeviceGetAttribute(&sm_major, cudaDevAttrComputeCapabilityMajor, cur_dev);
+    cudaDeviceGetAttribute(&sm_minor, cudaDevAttrComputeCapabilityMinor, cur_dev);
+
+    /* Cache key: pack (period, sm_major, sm_minor) into one uint64_t.
+     * Periods are block/3; they fit in 48 bits.  SM is two decimal digits. */
+    const uint64_t cache_key = period * 10000ULL
+                             + (uint64_t)(sm_major * 100 + sm_minor);
+
+    auto it = s_module_cache.find(cache_key);
     if (it != s_module_cache.end()) {
         *mod_out = it->second;
         return true;
     }
 
-#ifndef HAVE_NVRTC
-    applog(LOG_ERR, "KawPow: NVRTC not available — cannot JIT-compile kernel");
-    return false;
-#else
     std::string src = kawpow_build_kernel_source(period);
 
     nvrtcProgram prog;
@@ -186,19 +384,28 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
                                        "kawpow_kernel.cu",
                                        0, nullptr, nullptr));
 
+    /* Pass --gpu-architecture so NVRTC evaluates __launch_bounds__ against
+     * the actual register file size of the target SM, not a generic baseline.
+     * compute_XY (virtual arch) is used rather than sm_XY (real arch) because
+     * NVRTC produces PTX which the driver then JITs to native ISA.           */
+    std::string arch_flag = "--gpu-architecture=compute_"
+                          + std::to_string(sm_major)
+                          + std::to_string(sm_minor);
+
     const char* opts[] = {
         "--std=c++14",
         "--use_fast_math",
         "--generate-line-info",
+        arch_flag.c_str(),
     };
-    nvrtcResult compile_res = nvrtcCompileProgram(prog, 3, opts);
+    nvrtcResult compile_res = nvrtcCompileProgram(prog, 4, opts);
     if (compile_res != NVRTC_SUCCESS) {
         size_t log_size = 0;
         nvrtcGetProgramLogSize(prog, &log_size);
         std::string log(log_size, '\0');
         nvrtcGetProgramLog(prog, &log[0]);
-        applog(LOG_ERR, "KawPow NVRTC compile error (period %llu):\n%s",
-               (unsigned long long)period, log.c_str());
+        applog(LOG_ERR, "KawPow NVRTC compile error (period %llu, sm_%d%d):\n%s",
+               (unsigned long long)period, sm_major, sm_minor, log.c_str());
         nvrtcDestroyProgram(&prog);
         return false;
     }
@@ -214,15 +421,15 @@ bool kawpow_compile_kernel(uint64_t period, CUmodule* mod_out)
     if (cu_res != CUDA_SUCCESS) {
         const char* msg = nullptr;
         cuGetErrorString(cu_res, &msg);
-        applog(LOG_ERR, "KawPow cuModuleLoadData failed (period %llu): %s",
-               (unsigned long long)period, msg ? msg : "unknown");
+        applog(LOG_ERR, "KawPow cuModuleLoadData failed (period %llu, sm_%d%d): %s",
+               (unsigned long long)period, sm_major, sm_minor, msg ? msg : "unknown");
         return false;
     }
 
-    s_module_cache[period] = mod;
+    s_module_cache[cache_key] = mod;
     *mod_out = mod;
-    applog(LOG_INFO, "KawPow: compiled kernel for period %llu",
-           (unsigned long long)period);
+    applog(LOG_INFO, "KawPow: compiled kernel for period %llu (sm_%d%d)",
+           (unsigned long long)period, sm_major, sm_minor);
     return true;
 #endif /* HAVE_NVRTC */
 }
