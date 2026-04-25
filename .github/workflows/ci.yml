@@ -58,9 +58,15 @@ jobs:
           # microarchitecture, causing SIGILL on machines lacking those extensions.
           # Omitting -march lets the compiler target the safe x86-64 baseline,
           # producing a distributable artifact that runs on all x86_64 hardware.
+          #
+          # LDFLAGS stubs path: libcuda.so is the NVIDIA *driver* library, absent
+          # on GPU-less CI runners.  The CUDA toolkit ships a linker stub at
+          # lib64/stubs/libcuda.so that satisfies -lcuda at build time.  The real
+          # driver library is resolved at runtime via the user's LD_LIBRARY_PATH.
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure \
               CXXFLAGS="-O3 -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16" \
+              LDFLAGS="-L${CUDA_HOME}/lib64/stubs" \
               --with-cuda="$CUDA_HOME" \
               --with-nvml=libnvidia-ml.so \
               --with-nvrtc
@@ -115,9 +121,12 @@ jobs:
           # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
           rm -f Makefile
           ./autogen.sh
+          # Same stubs rationale as x86_64: libcuda.so is a driver library,
+          # absent on GPU-less CI runners.  Point the linker at the toolkit stub.
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure \
               CXXFLAGS="-O3 -march=armv8-a" \
+              LDFLAGS="-L${CUDA_HOME}/lib64/stubs" \
               --with-cuda="$CUDA_HOME" \
               --with-nvml=libnvidia-ml.so \
               --with-nvrtc
