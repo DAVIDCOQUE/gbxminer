@@ -142,6 +142,10 @@ GPU Tuning:
       --plimit=W        Set power limit (watts or %)
       --tlimit=N        Set thermal limit (degrees C)
       --max-temp=N      Stop mining if GPU exceeds temp
+      --gov-temp=N      Thermal governor soft-limit (°C). Halves GPU work intensity
+                        when die temperature reaches N, restores on cool-down.
+                        Prevents clock throttle sawtooth. Default: 0 (disabled).
+                        Recommended: 5°C below your card's throttle point (e.g. 78).
 
 Debug:
   -D, --debug           Enable debug output
@@ -173,6 +177,7 @@ Debug:
 
 | Version | Date | Summary |
 |---|---|---|
+| v1.2.5 | Apr 2026 | **KawPow critical fix** (invalid shares on all previous versions). NVML thermal governor (`--gov-temp`). ETCHash: persistent DAG, `__ldg()` cache, async stream pipeline. NeoScrypt: CUDA Graph capture. KawPow: arch-specific NVRTC compilation. |
 | v1.2.1 | 2026 | Added kHeavyHash, ZelHash, FiroPow. Removed Groestl, Skein, Quark families. Fixed KawPow/FiroPow NVRTC build. |
 | v1.1.0 | 2026 | Added ETCHash, KawPow, Autolykos v2. Removed X-series, CryptoNight, Scrypt, Blake-ASIC. |
 | v1.0.1 | Apr 2026 | Rebranded from ccminer to GBXminer. CUDA 12 support. |

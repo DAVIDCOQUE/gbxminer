@@ -1,5 +1,5 @@
 
-GBXminer 1.2.1                    " - Fastest nVidia GPU Miner"
+GBXminer 1.2.5                    " - Fastest nVidia GPU Miner"
 ---------------------------------------------------------------
 
 ***************************************************************
@@ -116,6 +116,11 @@ This version supports:
       --api-remote      Allow remote control
       --api-allow=...   IP/mask of the allowed api client(s), 0/0 for all
       --max-temp=N      Only mine if gpu temp is less than specified value
+      --gov-temp=N      Thermal governor soft-limit in degrees C (default: 0 = disabled)
+                        Halves GPU work intensity when die temperature reaches N;
+                        restores on cool-down. Prevents clock throttle sawtooth.
+                        Recommended: set 5°C below card's throttle point (e.g. 78).
+                        Requires NVML (Linux). Silently ignored when NVML absent.
       --max-rate=N[KMG] Only mine if net hashrate is less than specified value
       --max-diff=N      Only mine if net difficulty is less than specified value
       --plimit=150W     set the gpu power limit
@@ -167,6 +172,27 @@ You can test it on linux with "telnet <miner-ip> 4068" and type "help".
 
 
 >>> GBXMINER RELEASE HISTORY <<<
+
+  Apr. 25th 2026  v1.2.5
+                  CRITICAL FIX: KawPow (Ravencoin) kernel was producing invalid
+                  shares on all previous versions. Four bugs corrected: wrong
+                  per-thread nonce (ProgPoW is warp-collaborative), missing
+                  keccak_f800 seed hash, missing keccak_f800 final hash, wrong
+                  result GID stored for nonce recovery.
+                  Added --gov-temp=N: NVML thermal governor. Reduces GPU work
+                  intensity before hardware throttle boundary is reached, keeping
+                  the boost clock stable instead of sawtoothing. Default: off.
+                  ETCHash: DAG allocation now persistent across epoch transitions
+                  (no cudaFree/cudaMalloc stall). Light cache staging uses pinned
+                  host memory for full PCIe throughput. __ldg() read-only cache
+                  applied to all DAG lookups in search kernel (+5-12% sm_75/86).
+                  Async CUDA stream pipeline for all per-scan operations.
+                  NeoScrypt: CUDA Graph captures four-kernel pipeline on first
+                  launch; subsequent scans replay with one driver call instead
+                  of six, eliminating per-kernel CPU overhead.
+                  KawPow: NVRTC now compiles with --gpu-architecture=compute_XY
+                  matching the actual device SM, improving register allocation.
+                  Module cache keyed by (period, sm_major, sm_minor).
 
   2026            v1.2.1
                   Added kHeavyHash (Kaspa), ZelHash (Flux), FiroPow (Firo)
