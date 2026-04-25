@@ -43,7 +43,6 @@ jobs:
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
-          # FIX #4: Use CUDA_PKG_VERSION so the global env var actually drives this.
           sudo apt-get install -y "cuda-toolkit-${{ env.CUDA_PKG_VERSION }}"
           echo "CUDA_HOME=/usr/local/cuda-${{ env.CUDA_VERSION }}" >> "$GITHUB_ENV"
           echo "PATH=/usr/local/cuda-${{ env.CUDA_VERSION }}/bin:$PATH" >> "$GITHUB_ENV"
@@ -54,11 +53,6 @@ jobs:
           # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
           rm -f Makefile
           ./autogen.sh
-          # FIX #2: -march=native produces a binary tied to the CI runner's CPU
-          # microarchitecture, causing SIGILL on machines lacking those extensions.
-          # Omitting -march lets the compiler target the safe x86-64 baseline,
-          # producing a distributable artifact that runs on all x86_64 hardware.
-          #
           # LDFLAGS stubs path: libcuda.so is the NVIDIA *driver* library, absent
           # on GPU-less CI runners.  The CUDA toolkit ships a linker stub at
           # lib64/stubs/libcuda.so that satisfies -lcuda at build time.  The real
@@ -156,20 +150,12 @@ jobs:
       - name: Setup CUDA on Windows
         run: |
           $ErrorActionPreference = "Stop"
-          # FIX #4: Derive installer filename and URL from the global CUDA_VERSION
-          # env var so a single-line bump keeps Windows in sync with Linux.
           $cudaVersion = "${{ env.CUDA_VERSION }}"
           $cudaInstaller = "cuda_${cudaVersion}.0_571.96_windows.exe"
           $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${cudaVersion}.0/local_installers/$cudaInstaller"
           Write-Host "Downloading CUDA from: $cudaUrl"
           Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
 
-          # FIX #5: The CUDA Windows installer's silent-install (-s) syntax expects
-          # components as individual space-separated arguments, not a single
-          # comma-delimited string.  Passing a comma-string via Start-Process
-          # -ArgumentList delivers it as one malformed token; the installer may
-          # then install nothing or default to a full installation.
-          # Use a PowerShell array so each component is a distinct argument.
           $components = @(
               "nvcc_${{ env.CUDA_VERSION }}",
               "cudart_${{ env.CUDA_VERSION }}",
@@ -217,11 +203,21 @@ jobs:
           # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
           rm -f Makefile
           ./autogen.sh
-          # cygpath -m converts "C:\Program Files\..." to "C:/Program Files/..."
-          # (mixed format), which autotools handles correctly without choking on
-          # backslashes or spaces in "NVIDIA GPU Computing Toolkit".
-          CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
-          echo "CUDA path (MSYS2 mixed): $CUDA_PATH_MSYS"
+          # cygpath -ms: -m gives forward-slash mixed format (C:/...),
+          # -s additionally requests Windows 8.3 short names, which collapses
+          # "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8" to
+          # something like "C:/PROGRA~1/NVIDIA~1/CUDA/v12.8" with no spaces.
+          #
+          # Without -s, autotools writes the spaced path verbatim into the
+          # generated Makefile CFLAGS without shell quoting. GCC then splits
+          # on every space and treats each word ("Files/NVIDIA", "GPU", etc.)
+          # as a separate linker input, producing "No such file" errors for
+          # every compilation unit before a single object file is produced.
+          #
+          # 8.3 short names are always present on NTFS and are stable for
+          # the lifetime of the directory.
+          CUDA_PATH_MSYS=$(cygpath -ms "$CUDA_HOME")
+          echo "CUDA path (MSYS2 8.3 short): $CUDA_PATH_MSYS"
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3" \
