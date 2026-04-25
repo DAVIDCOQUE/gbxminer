@@ -43,6 +43,7 @@ jobs:
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
+          # FIX #4: Use CUDA_PKG_VERSION so the global env var actually drives this.
           sudo apt-get install -y "cuda-toolkit-${{ env.CUDA_PKG_VERSION }}"
           echo "CUDA_HOME=/usr/local/cuda-${{ env.CUDA_VERSION }}" >> "$GITHUB_ENV"
           echo "PATH=/usr/local/cuda-${{ env.CUDA_VERSION }}/bin:$PATH" >> "$GITHUB_ENV"
@@ -156,10 +157,17 @@ jobs:
           Write-Host "Downloading CUDA from: $cudaUrl"
           Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
 
+          # Run a full silent install (-s with no component list).
+          # Component-filtered installs silently no-op when any component
+          # name is unrecognised; the installer exits 0 and installs nothing.
+          # A full silent install is unambiguous and idiomatic for CI.
           Write-Host "Installing CUDA $cudaVersion (silent, full)..."
           Start-Process -FilePath ".\$cudaInstaller" -ArgumentList @("-s") -Wait -NoNewWindow
           Remove-Item $cudaInstaller
 
+          # Verify the install actually produced the expected tree before
+          # proceeding.  The CUDA installer exits 0 even on partial failure,
+          # so an explicit path check is the only reliable gate.
           $cudaReal = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
           if (-not (Test-Path $cudaReal)) {
               Write-Error "CUDA install did not produce expected directory: $cudaReal"
@@ -167,6 +175,12 @@ jobs:
           }
           Write-Host "CUDA installed at: $cudaReal"
 
+          # Create an NTFS directory junction at C:\cuda.
+          # The default install path contains spaces ("Program Files",
+          # "NVIDIA GPU Computing Toolkit") that autotools writes unquoted
+          # into Makefile CFLAGS, causing GCC to word-split the path and
+          # treat each token as a linker input.  A junction at C:\cuda is
+          # space-free and kernel-transparent to both nvcc and MinGW GCC.
           $cudaJunction = "C:\cuda"
           New-Item -ItemType Junction -Path $cudaJunction -Target $cudaReal | Out-Null
           Write-Host "Junction created: $cudaJunction -> $cudaReal"
@@ -202,9 +216,16 @@ jobs:
           # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
           rm -f Makefile
           ./autogen.sh
+          # CUDA_HOME is set to the junction C:\cuda (no spaces) by the
+          # "Setup CUDA on Windows" step above.  cygpath -m of a path that
+          # already contains no spaces is a no-op, so we pass it directly.
+          # Forward-slash form (C:/cuda) is accepted by both autotools and nvcc.
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
-          CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
+          # -ccbin g++: nvcc on Windows defaults to cl.exe (MSVC) as host
+          # compiler.  This runner has no MSVC; tell nvcc to use MinGW g++
+          # instead.  -ccbin accepts a bare name when the binary is in PATH.
+          CUDA_CFLAGS="-O3 -lineno -ccbin g++ -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3" \
             PKG_CONFIG="pkg-config --static" \
