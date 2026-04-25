@@ -170,11 +170,12 @@ jobs:
           Start-Process -FilePath ".\$cudaInstaller" -ArgumentList $installerArgs -Wait -NoNewWindow
           Remove-Item $cudaInstaller
 
-          # Use forward-slash paths for MSYS2/autotools compatibility.
-          $cudaPath = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v$cudaVersion"
-          "$cudaPath/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "CUDA_HOME=$cudaPath"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
-          "CUDA_PATH=$cudaPath"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
+          $cudaReal = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+          $cudaJunction = "C:\cuda"
+          New-Item -ItemType Junction -Path $cudaJunction -Target $cudaReal | Out-Null
+          "$cudaJunction/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "CUDA_HOME=$cudaJunction"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
+          "CUDA_PATH=$cudaJunction"  | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
 
       - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
@@ -203,21 +204,8 @@ jobs:
           # FIX #6: rm -f already suppresses ENOENT; the || true guard was redundant.
           rm -f Makefile
           ./autogen.sh
-          # cygpath -ms: -m gives forward-slash mixed format (C:/...),
-          # -s additionally requests Windows 8.3 short names, which collapses
-          # "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8" to
-          # something like "C:/PROGRA~1/NVIDIA~1/CUDA/v12.8" with no spaces.
-          #
-          # Without -s, autotools writes the spaced path verbatim into the
-          # generated Makefile CFLAGS without shell quoting. GCC then splits
-          # on every space and treats each word ("Files/NVIDIA", "GPU", etc.)
-          # as a separate linker input, producing "No such file" errors for
-          # every compilation unit before a single object file is produced.
-          #
-          # 8.3 short names are always present on NTFS and are stable for
-          # the lifetime of the directory.
-          CUDA_PATH_MSYS=$(cygpath -ms "$CUDA_HOME")
-          echo "CUDA path (MSYS2 8.3 short): $CUDA_PATH_MSYS"
+          CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
+          echo "CUDA path: $CUDA_PATH_MSYS"
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3" \
