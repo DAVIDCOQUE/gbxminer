@@ -187,11 +187,47 @@ jobs:
           "CUDA_HOME=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
           "CUDA_PATH=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
 
+      - name: Add MSVC cl.exe to PATH for nvcc toolchain probe
+        run: |
+          # nvcc on Windows runs an unconditional cl.exe PATH probe at startup
+          # (Check 1).  This probe is independent of -ccbin and CUDAHOSTCXX —
+          # it runs before either is applied and fails fatally when cl.exe is
+          # absent.  The windows-2025 runner ships VS 2022 but does not add
+          # cl.exe to the default PATH; locate it via vswhere and export it.
+          #
+          # Note: cl.exe being findable triggers two further nvcc behaviours
+          # that also require suppression (see Configure build step):
+          #   Check 2 — MSVC version gate: suppressed by -allow-unsupported-compiler
+          #   Check 3 — Host suite detection: suppressed by CUDAHOSTCXX=g++
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+              Write-Error "vswhere.exe not found; cannot locate MSVC cl.exe"
+              exit 1
+          }
+          $msvcDir = & $vswhere -latest -products * `
+              -requires Microsoft.VisualCpp.Tools.HostX64.TargetX64 `
+              -find "VC\Tools\MSVC\*\bin\HostX64\x64" 2>$null |
+              Select-Object -First 1
+          if (-not $msvcDir) {
+              Write-Error "Could not locate MSVC HostX64 cl.exe via vswhere"
+              exit 1
+          }
+          Write-Host "Adding MSVC to PATH: $msvcDir"
+          $msvcDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
+          # path-type: inherit causes MSYS2 to convert and prepend the full
+          # Windows PATH (including GITHUB_PATH additions from prior steps)
+          # into the MSYS2 shell PATH.  Required so that nvcc.exe (a native
+          # Windows binary invoked by make) inherits a PATH that includes the
+          # MSVC directory added by the "Add MSVC cl.exe" step above.
+          # Without this, msys2/setup-msys2 defaults to path-type: minimal
+          # and strips all GITHUB_PATH additions.
+          path-type: inherit
           # mingw-w64-x86_64-curl provides both the headers and libcurl.dll.a
           # import library natively — no cross-compilation or external download
           # required.  openssl, jansson, and zlib are likewise available in the
@@ -211,14 +247,15 @@ jobs:
       - name: Configure build
         shell: msys2 {0}
         env:
-          # CUDAHOSTCXX is nvcc's documented environment variable for
-          # overriding host-compiler detection.  When set, nvcc skips its
-          # unconditional PATH probe for cl.exe entirely and never enters the
-          # "MSVC environment" code path.  This prevents nvcc from injecting
-          # MSVC-specific flags (-nologo, -EHsc) into the g++ invocation,
-          # which g++ does not understand and would cause a fatal error.
-          # -ccbin g++ in CUDA_CFLAGS is belt-and-suspenders; CUDAHOSTCXX
-          # is what actually suppresses the probe.
+          # CUDAHOSTCXX suppresses nvcc's host-suite detection (Check 3).
+          # When cl.exe is found on PATH, nvcc determines the host compiler
+          # suite is MSVC and injects MSVC-specific flags (-nologo, -EHsc)
+          # into every g++ invocation via -Xcompiler.  g++ does not recognise
+          # these flags and fails fatally.  Setting CUDAHOSTCXX=g++ tells nvcc
+          # the host C++ compiler is GCC, preventing MSVC flag injection.
+          # This is orthogonal to -ccbin g++ (which sets the compiler binary)
+          # and to the cl.exe probe (Check 1, which still runs and still needs
+          # cl.exe to be findable).
           CUDAHOSTCXX: g++
         run: |
           rm -f Makefile
@@ -229,7 +266,13 @@ jobs:
           # Forward-slash form (C:/cuda) is accepted by both autotools and nvcc.
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
-          CUDA_CFLAGS="-O3 -lineno -ccbin g++ -Xcompiler -Wall -D_FORCE_INLINES" \
+          # -ccbin g++: direct nvcc to invoke MinGW g++ for host compilation.
+          # -allow-unsupported-compiler: suppresses nvcc's MSVC version gate
+          #   (Check 2).  The windows-2025 runner ships VS 2022 17.13+, a
+          #   toolset revision outside nvcc 12.8's validated range [2019,2022].
+          #   This flag bypasses that check; it is safe here because the actual
+          #   host compiler is g++, not cl.exe.
+          CUDA_CFLAGS="-O3 -lineno -ccbin g++ -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
