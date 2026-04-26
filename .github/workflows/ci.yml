@@ -265,12 +265,16 @@ jobs:
           # therefore written line-by-line via Set-Content / Add-Content.
           New-Item -ItemType Directory -Force -Path C:\nvcc-shim | Out-Null
 
+          # Write gpp_filter.py using shutil.which to discover g++ at
+          # runtime rather than hardcoding C:\msys64\mingw64\bin\g++.exe.
+          # The MSYS2 installation path is not guaranteed across runner images.
           $f = 'C:\nvcc-shim\gpp_filter.py'
-          'import sys, subprocess'                                       | Set-Content $f -Encoding utf8
+          'import sys, subprocess, shutil'                               | Set-Content $f -Encoding utf8
           "MSVC_ONLY = frozenset(['-nologo', '-EHsc', '-FS'])"          | Add-Content $f -Encoding utf8
-          "real_gpp = r'C:\msys64\mingw64\bin\g++.exe'"             | Add-Content $f -Encoding utf8
           'args = [a for a in sys.argv[1:] if a not in MSVC_ONLY]'     | Add-Content $f -Encoding utf8
-          'sys.exit(subprocess.run([real_gpp] + args).returncode)'      | Add-Content $f -Encoding utf8
+          "gpp = shutil.which('g++')"                                   | Add-Content $f -Encoding utf8
+          'if not gpp: sys.stderr.write("gpp_filter: g++ not in PATH\n"); sys.exit(127)' | Add-Content $f -Encoding utf8
+          'sys.exit(subprocess.run([gpp] + args).returncode)'           | Add-Content $f -Encoding utf8
 
           $b = 'C:\nvcc-shim\g++.bat'
           '@echo off'                                     | Set-Content $b -Encoding ascii
