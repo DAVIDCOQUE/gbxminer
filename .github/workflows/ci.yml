@@ -221,6 +221,16 @@ jobs:
         with:
           msystem: MINGW64
           update: true
+          # path-type: inherit causes MSYS2 to convert and prepend the full
+          # Windows PATH (including GITHUB_PATH additions from prior steps)
+          # into the MSYS2 shell PATH.  Without this, msys2/setup-msys2
+          # defaults to path-type: minimal, which strips GITHUB_PATH entries
+          # entirely.  Native Windows executables invoked by make (notably
+          # nvcc.exe) probe PATH using the Windows environment, so cl.exe —
+          # added to GITHUB_PATH by the "Add MSVC cl.exe to PATH" step —
+          # must be visible here or nvcc's unconditional startup probe fails
+          # fatally before -ccbin is ever applied.
+          path-type: inherit
           # mingw-w64-x86_64-curl provides both the headers and libcurl.dll.a
           # import library natively — no cross-compilation or external download
           # required.  openssl, jansson, and zlib are likewise available in the
@@ -254,7 +264,7 @@ jobs:
           # instead.  -ccbin accepts a bare name when the binary is in PATH.
           CUDA_CFLAGS="-O3 -lineno -ccbin g++ -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
-            CXXFLAGS="-O3" \
+            CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
             --with-cuda="$CUDA_PATH_MSYS"
 
