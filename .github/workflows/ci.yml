@@ -190,15 +190,15 @@ jobs:
       - name: Add MSVC cl.exe to PATH for nvcc toolchain probe
         run: |
           # nvcc on Windows runs an unconditional cl.exe PATH probe at startup
-          # (Check 1).  This probe is independent of -ccbin and CUDAHOSTCXX —
-          # it runs before either is applied and fails fatally when cl.exe is
-          # absent.  The windows-2025 runner ships VS 2022 but does not add
-          # cl.exe to the default PATH; locate it via vswhere and export it.
+          # (Check 1).  This probe is independent of -ccbin — it runs before
+          # any flag is applied and fails fatally when cl.exe is absent.
+          # The windows-2025 runner ships VS 2022 but does not add cl.exe to
+          # the default PATH; locate it via vswhere and export it.
           #
           # Note: cl.exe being findable triggers two further nvcc behaviours
-          # that also require suppression (see Configure build step):
+          # that also require suppression (see subsequent steps):
           #   Check 2 — MSVC version gate: suppressed by -allow-unsupported-compiler
-          #   Check 3 — Host suite detection: suppressed by CUDAHOSTCXX=g++
+          #   Check 3 — MSVC flag injection: suppressed by the g++ filter shim
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (-not (Test-Path $vswhere)) {
               Write-Error "vswhere.exe not found; cannot locate MSVC cl.exe"
@@ -244,19 +244,44 @@ jobs:
             make
             pkg-config
 
+      - name: Create nvcc g++ host-compiler filter shim
+        run: |
+          # Check 3 — MSVC flag injection: once cl.exe is on PATH, nvcc 12.x
+          # unconditionally sets its internal host-compiler suite to MSVC and
+          # prepends MSVC-only flags (-nologo, -EHsc) to every host-compiler
+          # invocation, regardless of -ccbin or CUDAHOSTCXX (proven across four
+          # CI runs to be non-functional for this suppression).  g++ does not
+          # recognise these flags and fails fatally.
+          #
+          # Solution: a filter shim at C:\nvcc-shim\g++.bat strips the injected
+          # flags before forwarding argv to the real MinGW g++.exe.  Pointing
+          # -ccbin at the full shim path avoids any PATH ordering dependency.
+          #
+          # This step must run AFTER msys2/setup-msys2 so that the real g++.exe
+          # already exists at C:\msys64\mingw64\bin\g++.exe.
+          #
+          # NOTE: PowerShell here-string syntax requires the closing marker at
+          # column 0, which breaks YAML block scalar indentation.  The script is
+          # therefore written line-by-line via Set-Content / Add-Content.
+          New-Item -ItemType Directory -Force -Path C:\nvcc-shim | Out-Null
+
+          $f = 'C:\nvcc-shim\gpp_filter.py'
+          'import sys, subprocess'                                       | Set-Content $f -Encoding utf8
+          "MSVC_ONLY = frozenset(['-nologo', '-EHsc', '-FS'])"          | Add-Content $f -Encoding utf8
+          "real_gpp = r'C:\msys64\mingw64\bin\g++.exe'"             | Add-Content $f -Encoding utf8
+          'args = [a for a in sys.argv[1:] if a not in MSVC_ONLY]'     | Add-Content $f -Encoding utf8
+          'sys.exit(subprocess.run([real_gpp] + args).returncode)'      | Add-Content $f -Encoding utf8
+
+          $b = 'C:\nvcc-shim\g++.bat'
+          '@echo off'                                     | Set-Content $b -Encoding ascii
+          'python C:\nvcc-shim\gpp_filter.py %*'       | Add-Content $b -Encoding ascii
+
+          Write-Host "Shim installed:"
+          Get-Content C:\nvcc-shim\g++.bat
+          Get-Content C:\nvcc-shim\gpp_filter.py
+
       - name: Configure build
         shell: msys2 {0}
-        env:
-          # CUDAHOSTCXX suppresses nvcc's host-suite detection (Check 3).
-          # When cl.exe is found on PATH, nvcc determines the host compiler
-          # suite is MSVC and injects MSVC-specific flags (-nologo, -EHsc)
-          # into every g++ invocation via -Xcompiler.  g++ does not recognise
-          # these flags and fails fatally.  Setting CUDAHOSTCXX=g++ tells nvcc
-          # the host C++ compiler is GCC, preventing MSVC flag injection.
-          # This is orthogonal to -ccbin g++ (which sets the compiler binary)
-          # and to the cl.exe probe (Check 1, which still runs and still needs
-          # cl.exe to be findable).
-          CUDAHOSTCXX: g++
         run: |
           rm -f Makefile
           ./autogen.sh
@@ -266,13 +291,13 @@ jobs:
           # Forward-slash form (C:/cuda) is accepted by both autotools and nvcc.
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
-          # -ccbin g++: direct nvcc to invoke MinGW g++ for host compilation.
-          # -allow-unsupported-compiler: suppresses nvcc's MSVC version gate
-          #   (Check 2).  The windows-2025 runner ships VS 2022 17.13+, a
-          #   toolset revision outside nvcc 12.8's validated range [2019,2022].
-          #   This flag bypasses that check; it is safe here because the actual
-          #   host compiler is g++, not cl.exe.
-          CUDA_CFLAGS="-O3 -lineno -ccbin g++ -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
+          # -ccbin C:/nvcc-shim/g++.bat: full path to the filter shim (Check 3).
+          #   nvcc resolves -ccbin as a direct path when it contains a slash —
+          #   no PATH search occurs.  The .bat extension is cmd.exe-executable.
+          # -allow-unsupported-compiler: suppresses the MSVC version gate
+          #   (Check 2).  windows-2025 ships VS 2022 17.13+, outside nvcc
+          #   12.8's validated range [2019, 2022].
+          CUDA_CFLAGS="-O3 -lineno -ccbin C:/nvcc-shim/g++.bat -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
@@ -280,8 +305,6 @@ jobs:
 
       - name: Build
         shell: msys2 {0}
-        env:
-          CUDAHOSTCXX: g++
         run: make -j4
 
       - name: Verify binary
