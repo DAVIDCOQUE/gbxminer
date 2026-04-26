@@ -262,7 +262,15 @@ jobs:
           # -ccbin g++: nvcc on Windows defaults to cl.exe (MSVC) as host
           # compiler.  This runner has no MSVC; tell nvcc to use MinGW g++
           # instead.  -ccbin accepts a bare name when the binary is in PATH.
-          CUDA_CFLAGS="-O3 -lineno -ccbin g++ -Xcompiler -Wall -D_FORCE_INLINES" \
+          # -allow-unsupported-compiler: nvcc 12.x performs an unconditional
+          # MSVC *version* check that is independent of -ccbin.  Even when
+          # -ccbin g++ delegates all host compilation to MinGW g++, nvcc still
+          # inspects the cl.exe it found on PATH and rejects any toolset
+          # revision it does not recognise (windows-2025 ships VS 2022 17.13+,
+          # outside nvcc 12.8's [2019, 2022] validated range).  This flag
+          # suppresses that gate; it carries no risk here because the actual
+          # host compiler is g++, not cl.exe.
+          CUDA_CFLAGS="-O3 -lineno -ccbin g++ -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
