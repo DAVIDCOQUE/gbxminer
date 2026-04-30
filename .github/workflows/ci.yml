@@ -187,18 +187,26 @@ jobs:
           "CUDA_HOME=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
           "CUDA_PATH=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
 
-      - name: Add MSVC cl.exe to PATH for nvcc toolchain probe
+      - name: Locate MSVC cl.exe for nvcc host compiler
         run: |
-          # nvcc on Windows runs an unconditional cl.exe PATH probe at startup
-          # (Check 1).  This probe is independent of -ccbin — it runs before
-          # any flag is applied and fails fatally when cl.exe is absent.
-          # The windows-2025 runner ships VS 2022 but does not add cl.exe to
-          # the default PATH; locate it via vswhere and export it.
+          # nvcc on Windows has three mandatory startup checks that require MSVC:
+          #   Check 1 — PATH probe: nvcc scans PATH for cl.exe unconditionally
+          #              before any flag is parsed.  Fails fatally if absent.
+          #   Check 2 — MSVC version gate: nvcc validates the toolset version
+          #              is within its supported range [2019, 2022].  Suppressed
+          #              by -allow-unsupported-compiler.
+          #   Check 3 — Host compiler OS probe: nvcc calls the -ccbin compiler
+          #              and inspects its output to confirm it targets Windows.
+          #              GCC/MinGW always fails this — nvcc does not support GCC
+          #              as a host compiler on Windows.  Only cl.exe passes.
           #
-          # Note: cl.exe being findable triggers two further nvcc behaviours
-          # that also require suppression (see subsequent steps):
-          #   Check 2 — MSVC version gate: suppressed by -allow-unsupported-compiler
-          #   Check 3 — MSVC flag injection: suppressed by the g++ filter shim
+          # Architectural decision: use cl.exe as -ccbin.  nvcc's injected
+          # flags (-nologo, -EHsc) are valid MSVC flags.  The resulting .obj
+          # files use the Microsoft x64 ABI, which MinGW ld can link with
+          # MinGW-compiled objects because both use the same x64 Windows ABI.
+          #
+          # Create a junction at C:\msvc-bin (space-free) so autotools does
+          # not word-split the MSVC path when embedding it in Makefile rules.
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (-not (Test-Path $vswhere)) {
               Write-Error "vswhere.exe not found; cannot locate MSVC cl.exe"
@@ -212,8 +220,16 @@ jobs:
               Write-Error "Could not locate MSVC HostX64 cl.exe via vswhere"
               exit 1
           }
-          Write-Host "Adding MSVC to PATH: $msvcDir"
-          $msvcDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "MSVC directory: $msvcDir"
+
+          # Junction at C:\msvc-bin eliminates spaces from the path.
+          New-Item -ItemType Junction -Path C:\msvc-bin -Target $msvcDir | Out-Null
+          Write-Host "Junction: C:\msvc-bin -> $msvcDir"
+
+          # GITHUB_PATH: makes cl.exe findable in PATH for nvcc Check 1.
+          # GITHUB_ENV:  exports MSVC_CL for use as -ccbin in Configure build.
+          "C:\msvc-bin"            | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "MSVC_CL=C:/msvc-bin/cl.exe" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
 
       - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
@@ -244,85 +260,24 @@ jobs:
             make
             pkg-config
 
-      - name: Create nvcc g++ host-compiler filter shim
-        run: |
-          # Check 3 — MSVC flag injection: once cl.exe is on PATH, nvcc 12.x
-          # unconditionally sets its internal host-compiler suite to MSVC and
-          # prepends MSVC-only flags (-nologo, -EHsc) to every host-compiler
-          # invocation, regardless of -ccbin or CUDAHOSTCXX (proven across four
-          # CI runs to be non-functional for this suppression).  g++ does not
-          # recognise these flags and fails fatally.
-          #
-          # Solution: a filter shim at C:\nvcc-shim\g++.bat strips the injected
-          # flags before forwarding argv to the real MinGW g++.exe.  Pointing
-          # -ccbin at the full shim path avoids any PATH ordering dependency.
-          #
-          # This step must run AFTER msys2/setup-msys2 so that the real g++.exe
-          # already exists at C:\msys64\mingw64\bin\g++.exe.
-          #
-          # NOTE: PowerShell here-string syntax requires the closing marker at
-          # column 0, which breaks YAML block scalar indentation.  The script is
-          # therefore written line-by-line via Set-Content / Add-Content.
-          New-Item -ItemType Directory -Force -Path C:\nvcc-shim | Out-Null
-
-          # Locate the MinGW64 g++ by target triple at shim-creation time.
-          # PATH (via path-type: inherit) may contain multiple g++ binaries:
-          #   1. MSYS2 native g++ (/usr/bin/g++) — targets the MSYS2 POSIX
-          #      runtime; nvcc rejects it with "Host compiler targets
-          #      unsupported OS" because it is not a Windows-PE compiler.
-          #   2. MinGW64 g++ (/mingw64/bin/g++) — targets x86_64-w64-mingw32
-          #      (Windows PE/COFF); this is the correct host compiler.
-          # We identify the right binary by calling -dumpmachine and matching
-          # "mingw", then bake the resolved path into the script so there is
-          # no runtime discovery ambiguity.
-          $mingwGpp = $null
-          foreach ($candidate in (Get-Command g++ -All -ErrorAction SilentlyContinue |
-                                  Select-Object -ExpandProperty Source)) {
-              $triple = & $candidate -dumpmachine 2>$null
-              if ($triple -match 'mingw') {
-                  $mingwGpp = $candidate -replace '\\', '\\\\'
-                  break
-              }
-          }
-          if (-not $mingwGpp) {
-              Write-Error "Could not find MinGW64 g++ (expected target triple matching 'mingw')"
-              exit 1
-          }
-          Write-Host "MinGW64 g++ resolved to: $mingwGpp"
-
-          $f = 'C:\nvcc-shim\gpp_filter.py'
-          'import sys, subprocess'                                       | Set-Content $f -Encoding utf8
-          "MSVC_ONLY = frozenset(['-nologo', '-EHsc', '-FS'])"          | Add-Content $f -Encoding utf8
-          "real_gpp = r'$mingwGpp'"                                     | Add-Content $f -Encoding utf8
-          'args = [a for a in sys.argv[1:] if a not in MSVC_ONLY]'     | Add-Content $f -Encoding utf8
-          'sys.exit(subprocess.run([real_gpp] + args).returncode)'      | Add-Content $f -Encoding utf8
-
-          $b = 'C:\nvcc-shim\g++.bat'
-          '@echo off'                                     | Set-Content $b -Encoding ascii
-          'python C:\nvcc-shim\gpp_filter.py %*'       | Add-Content $b -Encoding ascii
-
-          Write-Host "Shim installed:"
-          Get-Content C:\nvcc-shim\g++.bat
-          Get-Content C:\nvcc-shim\gpp_filter.py
-
       - name: Configure build
         shell: msys2 {0}
         run: |
           rm -f Makefile
           ./autogen.sh
-          # CUDA_HOME is set to the junction C:\cuda (no spaces) by the
-          # "Setup CUDA on Windows" step above.  cygpath -m of a path that
-          # already contains no spaces is a no-op, so we pass it directly.
-          # Forward-slash form (C:/cuda) is accepted by both autotools and nvcc.
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
-          # -ccbin C:/nvcc-shim/g++.bat: full path to the filter shim (Check 3).
-          #   nvcc resolves -ccbin as a direct path when it contains a slash —
-          #   no PATH search occurs.  The .bat extension is cmd.exe-executable.
+          # MSVC_CL is set to C:/msvc-bin/cl.exe (space-free junction) by the
+          # "Locate MSVC cl.exe" step.  cygpath -m is a no-op for a path that
+          # already uses forward slashes and no spaces.
+          # -ccbin "$MSVC_CL": use MSVC cl.exe as nvcc host compiler (Check 3).
+          #   nvcc on Windows only supports MSVC as host compiler; it recognises
+          #   cl.exe output as targeting Windows and accepts the injected flags
+          #   (-nologo, -EHsc) that are valid MSVC options.
           # -allow-unsupported-compiler: suppresses the MSVC version gate
           #   (Check 2).  windows-2025 ships VS 2022 17.13+, outside nvcc
           #   12.8's validated range [2019, 2022].
-          CUDA_CFLAGS="-O3 -lineno -ccbin C:/nvcc-shim/g++.bat -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
+          CUDA_CFLAGS="-O3 -lineno -ccbin \"$MSVC_CL\" -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
