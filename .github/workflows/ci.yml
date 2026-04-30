@@ -265,16 +265,37 @@ jobs:
           # therefore written line-by-line via Set-Content / Add-Content.
           New-Item -ItemType Directory -Force -Path C:\nvcc-shim | Out-Null
 
-          # Write gpp_filter.py using shutil.which to discover g++ at
-          # runtime rather than hardcoding C:\msys64\mingw64\bin\g++.exe.
-          # The MSYS2 installation path is not guaranteed across runner images.
+          # Locate the MinGW64 g++ by target triple at shim-creation time.
+          # PATH (via path-type: inherit) may contain multiple g++ binaries:
+          #   1. MSYS2 native g++ (/usr/bin/g++) — targets the MSYS2 POSIX
+          #      runtime; nvcc rejects it with "Host compiler targets
+          #      unsupported OS" because it is not a Windows-PE compiler.
+          #   2. MinGW64 g++ (/mingw64/bin/g++) — targets x86_64-w64-mingw32
+          #      (Windows PE/COFF); this is the correct host compiler.
+          # We identify the right binary by calling -dumpmachine and matching
+          # "mingw", then bake the resolved path into the script so there is
+          # no runtime discovery ambiguity.
+          $mingwGpp = $null
+          foreach ($candidate in (Get-Command g++ -All -ErrorAction SilentlyContinue |
+                                  Select-Object -ExpandProperty Source)) {
+              $triple = & $candidate -dumpmachine 2>$null
+              if ($triple -match 'mingw') {
+                  $mingwGpp = $candidate -replace '\\', '\\\\'
+                  break
+              }
+          }
+          if (-not $mingwGpp) {
+              Write-Error "Could not find MinGW64 g++ (expected target triple matching 'mingw')"
+              exit 1
+          }
+          Write-Host "MinGW64 g++ resolved to: $mingwGpp"
+
           $f = 'C:\nvcc-shim\gpp_filter.py'
-          'import sys, subprocess, shutil'                               | Set-Content $f -Encoding utf8
+          'import sys, subprocess'                                       | Set-Content $f -Encoding utf8
           "MSVC_ONLY = frozenset(['-nologo', '-EHsc', '-FS'])"          | Add-Content $f -Encoding utf8
+          "real_gpp = r'$mingwGpp'"                                     | Add-Content $f -Encoding utf8
           'args = [a for a in sys.argv[1:] if a not in MSVC_ONLY]'     | Add-Content $f -Encoding utf8
-          "gpp = shutil.which('g++')"                                   | Add-Content $f -Encoding utf8
-          'if not gpp: sys.stderr.write("gpp_filter: g++ not in PATH\n"); sys.exit(127)' | Add-Content $f -Encoding utf8
-          'sys.exit(subprocess.run([gpp] + args).returncode)'           | Add-Content $f -Encoding utf8
+          'sys.exit(subprocess.run([real_gpp] + args).returncode)'      | Add-Content $f -Encoding utf8
 
           $b = 'C:\nvcc-shim\g++.bat'
           '@echo off'                                     | Set-Content $b -Encoding ascii
