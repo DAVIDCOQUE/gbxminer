@@ -277,7 +277,14 @@ jobs:
           # -allow-unsupported-compiler: suppresses the MSVC version gate
           #   (Check 2).  windows-2025 ships VS 2022 17.13+, outside nvcc
           #   12.8's validated range [2019, 2022].
-          CUDA_CFLAGS="-O3 -lineno -ccbin \"$MSVC_CL\" -allow-unsupported-compiler -Xcompiler -Wall -D_FORCE_INLINES" \
+          # -Wno-deprecated-gpu-targets: suppresses the pre-SM75 LTO deprecation
+          #   warning that nvcc 12.8 emits before the host-properties check that
+          #   fatals with "Host compiler targets unsupported OS".  The warning
+          #   and the fatal share a code path; suppressing the warning bypasses it.
+          # -Xcompiler /W3: correct MSVC warning level flag (cl.exe uses /Wn, not
+          #   -Wall; passing -Wall to cl.exe enables /Wall = every warning, which
+          #   emits thousands of lines and may corrupt nvcc's host-properties parse).
+          CUDA_CFLAGS="-O3 -lineno -ccbin \"$MSVC_CL\" -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler /W3 -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
