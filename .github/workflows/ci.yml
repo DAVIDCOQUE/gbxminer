@@ -187,50 +187,25 @@ jobs:
           "CUDA_HOME=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
           "CUDA_PATH=$cudaJunction" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
 
-      - name: Locate MSVC cl.exe for nvcc host compiler
-        run: |
-          # nvcc on Windows has three mandatory startup checks that require MSVC:
-          #   Check 1 — PATH probe: nvcc scans PATH for cl.exe unconditionally
-          #              before any flag is parsed.  Fails fatally if absent.
-          #   Check 2 — MSVC version gate: nvcc validates the toolset version
-          #              is within its supported range [2019, 2022].  Suppressed
-          #              by -allow-unsupported-compiler.
-          #   Check 3 — Host compiler OS probe: nvcc calls the -ccbin compiler
-          #              and inspects its output to confirm it targets Windows.
-          #              GCC/MinGW always fails this — nvcc does not support GCC
-          #              as a host compiler on Windows.  Only cl.exe passes.
+      - name: Initialize MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          # ilammy/msvc-dev-cmd runs VsDevCmd.bat and exports every MSVC
+          # environment variable (INCLUDE, LIB, LIBPATH, VCToolsInstallDir,
+          # WindowsSdkDir, etc.) to GITHUB_ENV, and adds the MSVC bin
+          # directory (containing cl.exe) to GITHUB_PATH.
           #
-          # Architectural decision: use cl.exe as -ccbin.  nvcc's injected
-          # flags (-nologo, -EHsc) are valid MSVC flags.  The resulting .obj
-          # files use the Microsoft x64 ABI, which MinGW ld can link with
-          # MinGW-compiled objects because both use the same x64 Windows ABI.
+          # nvcc requires the full MSVC developer environment to pass its
+          # host-compiler OS probe.  The probe preprocesses a small C++ file
+          # using cl.exe and parses the output for Windows OS markers.
+          # Without the full MSVC environment, the probe output is malformed
+          # and nvcc aborts with "Host compiler targets unsupported OS" even
+          # though cl.exe itself runs successfully.
           #
-          # Create a junction at C:\msvc-bin (space-free) so autotools does
-          # not word-split the MSVC path when embedding it in Makefile rules.
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path $vswhere)) {
-              Write-Error "vswhere.exe not found; cannot locate MSVC cl.exe"
-              exit 1
-          }
-          $msvcDir = & $vswhere -latest -products * `
-              -requires Microsoft.VisualCpp.Tools.HostX64.TargetX64 `
-              -find "VC\Tools\MSVC\*\bin\HostX64\x64" 2>$null |
-              Select-Object -First 1
-          if (-not $msvcDir) {
-              Write-Error "Could not locate MSVC HostX64 cl.exe via vswhere"
-              exit 1
-          }
-          Write-Host "MSVC directory: $msvcDir"
-
-          # Junction at C:\msvc-bin eliminates spaces from the path.
-          New-Item -ItemType Junction -Path C:\msvc-bin -Target $msvcDir | Out-Null
-          Write-Host "Junction: C:\msvc-bin -> $msvcDir"
-
-          # GITHUB_PATH: makes cl.exe findable in PATH for nvcc Check 1.
-          # GITHUB_ENV:  exports MSVC_CL for use as -ccbin in Configure build.
-          "C:\msvc-bin"            | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "MSVC_CL=C:/msvc-bin/cl.exe" | Out-File -FilePath $env:GITHUB_ENV  -Encoding utf8 -Append
-
+          # These env vars propagate into the MSYS2 shell via path-type:
+          # inherit on the msys2/setup-msys2 step, so nvcc invocations
+          # spawned by make see the complete MSVC environment.
       - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
         with:
@@ -267,24 +242,19 @@ jobs:
           ./autogen.sh
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
-          # MSVC_CL is set to C:/msvc-bin/cl.exe (space-free junction) by the
-          # "Locate MSVC cl.exe" step.  cygpath -m is a no-op for a path that
-          # already uses forward slashes and no spaces.
-          # -ccbin "$MSVC_CL": use MSVC cl.exe as nvcc host compiler (Check 3).
-          #   nvcc on Windows only supports MSVC as host compiler; it recognises
-          #   cl.exe output as targeting Windows and accepts the injected flags
-          #   (-nologo, -EHsc) that are valid MSVC options.
-          # -allow-unsupported-compiler: suppresses the MSVC version gate
-          #   (Check 2).  windows-2025 ships VS 2022 17.13+, outside nvcc
-          #   12.8's validated range [2019, 2022].
-          # -Wno-deprecated-gpu-targets: suppresses the pre-SM75 LTO deprecation
-          #   warning that nvcc 12.8 emits before the host-properties check that
-          #   fatals with "Host compiler targets unsupported OS".  The warning
-          #   and the fatal share a code path; suppressing the warning bypasses it.
-          # -Xcompiler /W3: correct MSVC warning level flag (cl.exe uses /Wn, not
-          #   -Wall; passing -Wall to cl.exe enables /Wall = every warning, which
-          #   emits thousands of lines and may corrupt nvcc's host-properties parse).
-          CUDA_CFLAGS="-O3 -lineno -ccbin \"$MSVC_CL\" -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler /W3 -D_FORCE_INLINES" \
+          # -ccbin cl.exe: ilammy/msvc-dev-cmd adds the MSVC bin directory to
+          #   GITHUB_PATH, which propagates into the MSYS2 PATH via path-type:
+          #   inherit.  A bare name is sufficient; no junction needed.
+          #   nvcc on Windows only accepts MSVC as host compiler; cl.exe output
+          #   passes the OS probe and accepts injected flags (-nologo, -EHsc).
+          # -allow-unsupported-compiler: suppresses the MSVC version gate.
+          #   windows-2025 ships VS 2022 17.13+, outside nvcc 12.8 validated
+          #   range [2019, 2022].
+          # -Wno-deprecated-gpu-targets: suppresses the pre-SM75 LTO warning.
+          #   SM50-62 targets remain valid for binary generation with nvcc 12.8.
+          # -Xcompiler /W3: MSVC warning level flag.  -Wall on cl.exe enables
+          #   /Wall (all warnings), producing excessive output.
+          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler /W3 -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
