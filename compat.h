@@ -69,6 +69,7 @@ __inline int msver(void) {
 	}
 }
 
+#include <stdio.h>
 #include <stdlib.h>
 static __inline char * dirname(char *file) {
 	char buffer[_MAX_PATH] = { 0 };

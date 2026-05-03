@@ -1,6 +1,7 @@
 #include "miner.h"
 
 extern "C" {
+#include <stdio.h>
 #include <stdint.h>
 #include <memory.h>
 }
