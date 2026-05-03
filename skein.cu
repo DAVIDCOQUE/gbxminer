@@ -5,6 +5,12 @@
 
 #include "sph/sph_skein.h"
 
+#ifdef _MSC_VER
+/* OpenSSL is unavailable under MSVC/cl.exe; use the SPH portable SHA256
+ * implementation that is already part of the project tree. */
+#include "sph/sph_sha2.h"
+#endif
+
 #include "miner.h"
 #include "cuda_helper.h"
 
@@ -337,11 +343,24 @@ extern "C" void skeincoinhash(void *output, const void *input)
 	sph_skein512(&ctx_skein, input, 80);
 	sph_skein512_close(&ctx_skein, hash);
 
+	/* SHA256 the skein output: use OpenSSL EVP on Linux/MinGW, or the
+	 * SPH portable implementation on MSVC (OpenSSL unavailable via cl.exe). */
+#ifdef _MSC_VER
+	{
+		sph_sha256_context ctx_sha256;
+		uint8_t out[32];
+		sph_sha256_init(&ctx_sha256);
+		sph_sha256(&ctx_sha256, hash, 64);
+		sph_sha256_close(&ctx_sha256, out);
+		memcpy(hash, out, 32);
+	}
+#else
 	EVP_MD_CTX *sha256_ctx = EVP_MD_CTX_new();
 	EVP_DigestInit_ex(sha256_ctx, EVP_sha256(), NULL);
 	EVP_DigestUpdate(sha256_ctx, (unsigned char *)hash, 64);
 	EVP_DigestFinal_ex(sha256_ctx, (unsigned char *)hash, NULL);
 	EVP_MD_CTX_free(sha256_ctx);
+#endif
 
 	memcpy(output, hash, 32);
 }
