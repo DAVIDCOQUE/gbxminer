@@ -254,7 +254,10 @@ jobs:
           #   SM50-62 targets remain valid for binary generation with nvcc 12.8.
           # -Xcompiler /W3: MSVC warning level flag.  -Wall on cl.exe enables
           #   /Wall (all warnings), producing excessive output.
-          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler /W3 -D_FORCE_INLINES" \
+          # -Xcompiler /W3 omitted: MSYS2 converts any token starting with "/" as
+          # a POSIX path, expanding /W3 to D:/a/_temp/msys64/W3 before it
+          # reaches nvcc.  The default cl.exe warning level is acceptable.
+          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \

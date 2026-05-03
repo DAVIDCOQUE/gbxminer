@@ -9,10 +9,44 @@ extern "C" {
 
 #include <stdbool.h>
 #include <inttypes.h>
-#include <sys/time.h>
-#include <pthread.h>
-#include <jansson.h>
-#include <curl/curl.h>
+
+#ifdef _MSC_VER
+/*
+ * MSVC does not ship <sys/time.h>, <pthread.h>, <jansson.h>, or
+ * <curl/curl.h>.  The stubs below are sufficient for cl.exe to compile
+ * the host-side of CUDA .cu translation units, which include this header
+ * for POD struct layouts (e.g. struct work) without directly
+ * instantiating pthread objects or JSON/cURL types.
+ *
+ * struct timeval  — provided by <winsock2.h> (Windows SDK)
+ * struct timespec — provided by <time.h>     (MSVC 2015+)
+ * pthread types   — opaque void* stubs; structs that embed them are
+ *                   host-only and are never allocated in device code.
+ * json_t / CURL   — forward declarations; always used as pointers.
+ */
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
+# include <winsock2.h>
+# include <time.h>
+typedef void *pthread_t;
+typedef void *pthread_mutex_t;
+typedef void *pthread_rwlock_t;
+typedef void *pthread_cond_t;
+typedef void *pthread_attr_t;
+typedef struct json_t      json_t;
+typedef struct json_error_t json_error_t;
+typedef void               CURL;
+# ifndef CURL_ERROR_SIZE
+#  define CURL_ERROR_SIZE 256
+# endif
+typedef SOCKET curl_socket_t;
+#else
+# include <sys/time.h>
+# include <pthread.h>
+# include <jansson.h>
+# include <curl/curl.h>
+#endif
 
 #ifdef _MSC_VER
 #undef HAVE_ALLOCA_H
