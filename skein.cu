@@ -8,7 +8,9 @@
 #include "miner.h"
 #include "cuda_helper.h"
 
+#ifndef _MSC_VER
 #include <openssl/evp.h>
+#endif
 
 static uint32_t *d_hash[MAX_GPUS];
 static __thread bool sm5 = true;
@@ -60,7 +62,9 @@ static __device__ __constant__ uint32_t sha256_endingTable[] = {
 #define s0(x)         (ROTR32(x, 7) ^ ROTR32(x, 18) ^ R(x, 3))
 #define s1(x)         (ROTR32(x, 17) ^ ROTR32(x, 19) ^ R(x, 10))
 
+#ifndef _MSC_VER
 #define ADVANCED_SHA2
+#endif
 
 #ifndef ADVANCED_SHA2
 
