@@ -482,7 +482,7 @@ struct work_restart {
 	char padding[128 - sizeof(uint32_t)];
 };
 
-#ifdef HAVE_GETOPT_LONG
+#if defined(HAVE_GETOPT_LONG) && !defined(_MSC_VER)
 #include <getopt.h>
 #else
 struct option {
