@@ -1,10 +1,14 @@
 #include <stdio.h>
+#ifndef _MSC_VER
 #include <openssl/evp.h>
+#endif
 #include <cuda.h>
 #include <map>
 
 #ifndef WITH_HEAVY_ALGO
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #include "miner.h"
 // nonce array also used in other algos
 uint32_t *heavy_nonceVector[MAX_GPUS];
@@ -338,6 +342,9 @@ extern "C" {
 #include "sph/sph_keccak.h"
 #include "sph/sph_blake.h"
 #include "sph/sph_groestl.h"
+#ifdef _MSC_VER
+#include "sph/sph_sha2.h"
+#endif
 }
 #include "hefty1.h"
 #include "heavy/heavy.h"
@@ -390,6 +397,17 @@ void heavycoin_hash(uchar* output, const uchar* input, int len)
 	 *
 	 * N.B. '+' is concatenation.
 	 */
+#ifdef _MSC_VER
+	/* SPH sha256 supports incremental updates: feed input then hash1,
+	 * matching the two EVP_DigestUpdate calls exactly. */
+	{
+		sph_sha256_context ctx_sha256;
+		sph_sha256_init(&ctx_sha256);
+		sph_sha256(&ctx_sha256, input, len);
+		sph_sha256(&ctx_sha256, hash1, sizeof(hash1));
+		sph_sha256_close(&ctx_sha256, hash2);
+	}
+#else
 	EVP_MD_CTX *sha256_ctx = EVP_MD_CTX_new();
 	EVP_DigestInit_ex(sha256_ctx, EVP_sha256(), NULL);
 	EVP_DigestUpdate(sha256_ctx, input, len);
@@ -397,6 +415,7 @@ void heavycoin_hash(uchar* output, const uchar* input, int len)
 	unsigned int sha256_len = 0;
 	EVP_DigestFinal_ex(sha256_ctx, hash2, &sha256_len);
 	EVP_MD_CTX_free(sha256_ctx);
+#endif
 
 	/* Additional security: Do not rely on a single cryptographic hash
 	 * function.  Instead, combine the outputs of 4 of the most secure
