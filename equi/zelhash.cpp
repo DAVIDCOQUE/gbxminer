@@ -49,6 +49,7 @@
 #   define htobe32(x) (x)
 #  else
 #   include <stdlib.h>
+#   include <stdint.h>
 static inline uint32_t htobe32(uint32_t x) {
     return ((x & 0xFFU) << 24) | ((x & 0xFF00U) << 8)
          | ((x >> 8) & 0xFF00U) | ((x >> 24) & 0xFFU);
