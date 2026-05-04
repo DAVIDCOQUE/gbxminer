@@ -36,8 +36,26 @@
  */
 
 #include <stdio.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <assert.h>
+
+/* htobe32 is a Linux/glibc/BSD extension; provide a portable fallback
+ * for MinGW/MSVC where it is absent. */
+#if defined(_WIN32) || !defined(htobe32)
+# ifndef htobe32
+#  if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#   define htobe32(x) (x)
+#  else
+#   include <stdlib.h>
+static inline uint32_t htobe32(uint32_t x) {
+    return ((x & 0xFFU) << 24) | ((x & 0xFF00U) << 8)
+         | ((x >> 8) & 0xFF00U) | ((x >> 24) & 0xFFU);
+}
+#  endif
+# endif
+#endif
 
 #include <stdexcept>
 #include <vector>
