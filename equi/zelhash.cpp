@@ -232,7 +232,11 @@ extern "C" int scanhash_zelhash(int thr_id, struct work *work,
         } catch (const std::exception &e) {
             gpulog(LOG_WARNING, thr_id, "ZelHash solver: %s", e.what());
             free_zelhash(thr_id);
+#ifdef _WIN32
+            Sleep(1000);
+#else
             sleep(1);
+#endif
             return -1;
         }
 
