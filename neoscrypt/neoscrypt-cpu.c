@@ -42,7 +42,12 @@ typedef unsigned long ulong;
 #endif
 typedef unsigned int  uint;
 typedef unsigned char uchar;
+/* In C23+, bool is a keyword; in C99/C11/C17, stdbool.h defines it as a
+ * macro over _Bool.  Only define our own typedef when neither is in effect. */
+#if !defined(__bool_true_false_are_defined) && \
+    (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
 typedef unsigned int  bool;
+#endif
 
 #define MIN(a, b) ((a) < (b) ? a : b)
 #define MAX(a, b) ((a) > (b) ? a : b)
@@ -986,4 +991,3 @@ void neoscrypt(unsigned char *output, const unsigned char *input, unsigned int p
 		break;
 	}
 }
-
