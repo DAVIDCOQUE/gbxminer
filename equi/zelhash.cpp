@@ -41,21 +41,15 @@
 #endif
 #include <assert.h>
 
-/* htobe32 is a Linux/glibc/BSD extension; provide a portable fallback
- * for MinGW/MSVC where it is absent. */
-#if defined(_WIN32) || !defined(htobe32)
-# ifndef htobe32
-#  if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#   define htobe32(x) (x)
-#  else
-#   include <stdlib.h>
-#   include <stdint.h>
+/* htobe32: Linux/glibc provides this via <endian.h>; Windows does not. */
+#ifdef _WIN32
+# include <stdint.h>
 static inline uint32_t htobe32(uint32_t x) {
     return ((x & 0xFFU) << 24) | ((x & 0xFF00U) << 8)
-         | ((x >> 8) & 0xFF00U) | ((x >> 24) & 0xFFU);
+         | ((x >> 8)  & 0xFF00U) | ((x >> 24) & 0xFFU);
 }
-#  endif
-# endif
+#else
+# include <endian.h>
 #endif
 
 #include <stdexcept>
