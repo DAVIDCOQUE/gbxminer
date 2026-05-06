@@ -206,6 +206,21 @@ jobs:
           # These env vars propagate into the MSYS2 shell via path-type:
           # inherit on the msys2/setup-msys2 step, so nvcc invocations
           # spawned by make see the complete MSVC environment.
+      - name: Create space-free MSVC lib junction
+        run: |
+          # VCToolsInstallDir (set by ilammy/msvc-dev-cmd) contains spaces
+          # ("Program Files", "Microsoft Visual Studio").  Passing it directly
+          # in LDFLAGS causes shell word-splitting that breaks gcc's configure
+          # CC test.  Create a space-free junction at C:\msvc-libs — the same
+          # pattern used for C:\cuda.
+          $msvcLibs = Join-Path $env:VCToolsInstallDir "lib\x64"
+          if (-not (Test-Path $msvcLibs)) {
+              Write-Error "MSVC lib dir not found: $msvcLibs"
+              exit 1
+          }
+          New-Item -ItemType Junction -Path C:\msvc-libs -Target $msvcLibs | Out-Null
+          Write-Host "Junction: C:\msvc-libs -> $msvcLibs"
+
       - name: Setup Windows build (MSYS2/MINGW64)
         uses: msys2/setup-msys2@v2
         with:
@@ -242,11 +257,6 @@ jobs:
           ./autogen.sh
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
-          # VCToolsInstallDir is exported by ilammy/msvc-dev-cmd.
-          # Convert to a MSYS2 mixed path and strip any trailing backslash
-          # before appending the lib/x64 subdirectory.
-          VCLIBS=$(cygpath -m "${VCToolsInstallDir}" | sed 's|[/\\]*$||')/lib/x64
-          echo "MSVC lib path: $VCLIBS"
           # -ccbin cl.exe: ilammy/msvc-dev-cmd adds the MSVC bin directory to
           #   GITHUB_PATH, which propagates into the MSYS2 PATH via path-type:
           #   inherit.  A bare name is sufficient; no junction needed.
@@ -265,8 +275,7 @@ jobs:
           CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
-            LDFLAGS="-L${CUDA_PATH_MSYS}/lib/x64 -L${VCLIBS}" \
-            LIBS="-lvcruntime -lmsvcprt" \
+            LDFLAGS="-L${CUDA_PATH_MSYS}/lib/x64 -LC:/msvc-libs -lvcruntime -lmsvcprt" \
             PKG_CONFIG="pkg-config --static" \
             --with-cuda="$CUDA_PATH_MSYS"
 
