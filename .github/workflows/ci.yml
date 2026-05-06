@@ -242,6 +242,11 @@ jobs:
           ./autogen.sh
           CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
           echo "CUDA path: $CUDA_PATH_MSYS"
+          # VCToolsInstallDir is exported by ilammy/msvc-dev-cmd.
+          # Convert to a MSYS2 mixed path and strip any trailing backslash
+          # before appending the lib/x64 subdirectory.
+          VCLIBS=$(cygpath -m "${VCToolsInstallDir}" | sed 's|[/\\]*$||')/lib/x64
+          echo "MSVC lib path: $VCLIBS"
           # -ccbin cl.exe: ilammy/msvc-dev-cmd adds the MSVC bin directory to
           #   GITHUB_PATH, which propagates into the MSYS2 PATH via path-type:
           #   inherit.  A bare name is sufficient; no junction needed.
@@ -260,7 +265,8 @@ jobs:
           CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
-            LDFLAGS="-L${CUDA_PATH_MSYS}/lib/x64" \
+            LDFLAGS="-L${CUDA_PATH_MSYS}/lib/x64 -L${VCLIBS}" \
+            LIBS="-lvcruntime -lmsvcprt" \
             PKG_CONFIG="pkg-config --static" \
             --with-cuda="$CUDA_PATH_MSYS"
 
