@@ -285,7 +285,10 @@ jobs:
           # conflict with the MinGW CRT during configure CC tests.  Inject
           # them only into the final binary link by patching the Makefile.
           # The link command ends with -lcuda; append our libs after it.
-          sed -i 's|-lcuda |-LC:/cuda/lib/x64 -LC:/msvc-libs -lcuda -lvcruntime -lmsvcprt |' Makefile
+          # Append MSVC and CUDA runtime libs after the last -lcuda on the
+          # link line.  Use a word-boundary-aware pattern that matches
+          # -lcuda whether it is followed by a space or end-of-line.
+          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -lcuda -lvcruntime -lmsvcprt|g' Makefile
 
       - name: Build
         shell: msys2 {0}
