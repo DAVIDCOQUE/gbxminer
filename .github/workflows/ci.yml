@@ -275,9 +275,18 @@ jobs:
           CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
-            LDFLAGS="-L${CUDA_PATH_MSYS}/lib/x64 -LC:/msvc-libs -lvcruntime -lmsvcprt" \
+            LDFLAGS="-L${CUDA_PATH_MSYS}/lib/x64 -LC:/msvc-libs" \
             PKG_CONFIG="pkg-config --static" \
             --with-cuda="$CUDA_PATH_MSYS"
+
+      - name: Patch Makefile for MSVC runtime libs
+        shell: msys2 {0}
+        run: |
+          # -lvcruntime and -lmsvcprt cannot go in LDFLAGS because they
+          # conflict with the MinGW CRT during configure CC tests.  Inject
+          # them only into the final binary link by patching the Makefile.
+          # The link command ends with -lcuda; append our libs after it.
+          sed -i 's|-lcuda |-lcuda -lvcruntime -lmsvcprt |' Makefile
 
       - name: Build
         shell: msys2 {0}
