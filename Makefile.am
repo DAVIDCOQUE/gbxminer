@@ -114,11 +114,14 @@ endif
 
 if HAVE_WINDOWS
 gbxminer_SOURCES += compat/winansi.c
-gbxminer_LDADD += -lws2_32 -lwinmm
 endif
 
 gbxminer_LDFLAGS  = $(PTHREAD_FLAGS) @CUDA_LDFLAGS@
 gbxminer_LDADD    = @LIBCURL@ @JANSSON_LIBS@ @PTHREAD_LIBS@ @WS2_LIBS@ @CUDA_LIBS@ @OPENMP_CFLAGS@ @LIBS@ $(nvml_libs)
+if HAVE_WINDOWS
+# ws2_32/winmm are required when linking MSVC-compiled CUDA objects
+gbxminer_LDADD += -lws2_32 -lwinmm
+endif
 gbxminer_CPPFLAGS = @LIBCURL_CPPFLAGS@ @OPENMP_CFLAGS@ $(CPPFLAGS) $(PTHREAD_FLAGS) -fno-strict-aliasing $(JANSSON_INCLUDES) $(DEF_INCLUDES) $(nvml_defs)
 
 if ARCH_ARM64
@@ -228,4 +231,3 @@ autolykos2/mining.o: autolykos2/mining.cu
 
 etchash/etchash_cuda_miner_kernel.o: etchash/etchash_cuda_miner_kernel.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
-
