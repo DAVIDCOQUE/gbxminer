@@ -4,7 +4,9 @@
  * tpruvot - 2017 (GPL v3)
  */
 #include <stdio.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <assert.h>
 
 #include <stdexcept>
@@ -214,7 +216,11 @@ extern "C" int scanhash_equihash(int thr_id, struct work *work, uint32_t max_non
 		} catch (const std::exception & e) {
 			gpulog(LOG_WARNING, thr_id, "solver: %s", e.what());
 			free_equihash(thr_id);
+#ifdef _WIN32
+			Sleep(1000);
+#else
 			sleep(1);
+#endif
 			return -1;
 		}
 
@@ -290,7 +296,11 @@ void free_equihash(int thr_id)
 	init[thr_id] = false;
 }
 
+#ifndef _WIN32
+// On Windows this stub lives in equi/eq_iface_stub.cu (nvcc+cl.exe)
 // mmm... viva c++ junk
 void eq_cuda_context_interface::solve(const char *tequihash_header, unsigned int tequihash_header_len,
 	const char* nonce, unsigned int nonce_len,
 	fn_cancel cancelf, fn_solution solutionf, fn_hashdone hashdonef) { }
+
+#endif

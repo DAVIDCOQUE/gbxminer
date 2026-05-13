@@ -103,7 +103,7 @@ endif
 
 if !ARCH_ARM64
   # equihash
-  gbxminer_SOURCES += equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu
+  gbxminer_SOURCES += equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu equi/eq_iface_stub.cu
 
 endif
 
@@ -114,6 +114,7 @@ endif
 
 if HAVE_WINDOWS
 gbxminer_SOURCES += compat/winansi.c
+gbxminer_LDADD += -lws2_32 -lwinmm
 endif
 
 gbxminer_LDFLAGS  = $(PTHREAD_FLAGS) @CUDA_LDFLAGS@

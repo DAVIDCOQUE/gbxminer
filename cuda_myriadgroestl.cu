@@ -293,6 +293,7 @@ void myriadgroestl_gpu_hash_quad(uint32_t threads, uint32_t startNounce, uint32_
 
 // Setup Function
 __host__
+extern "C"
 void myriadgroestl_cpu_init(int thr_id, uint32_t threads)
 {
 	uint32_t temp[64];
@@ -313,6 +314,7 @@ void myriadgroestl_cpu_init(int thr_id, uint32_t threads)
 }
 
 __host__
+extern "C"
 void myriadgroestl_cpu_free(int thr_id)
 {
 	cudaFree(d_outputHashes[thr_id]);
@@ -320,6 +322,7 @@ void myriadgroestl_cpu_free(int thr_id)
 }
 
 __host__
+extern "C"
 void myriadgroestl_cpu_setBlock(int thr_id, void *data, uint32_t *pTargetIn)
 {
 	uint32_t msgBlock[32] = { 0 };
@@ -332,6 +335,7 @@ void myriadgroestl_cpu_setBlock(int thr_id, void *data, uint32_t *pTargetIn)
 }
 
 __host__
+extern "C"
 void myriadgroestl_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *resNounce)
 {
 	uint32_t threadsperblock = 256;
