@@ -16,7 +16,6 @@ static uint32_t* d_resNonces[MAX_GPUS] = { NULL };
 static __thread bool init_done = false;
 
 __host__
-extern "C"
 void cuda_check_cpu_init(int thr_id, uint32_t threads)
 {
     CUDA_CALL_OR_RET(cudaMalloc(&d_resNonces[thr_id], 32));
@@ -25,7 +24,6 @@ void cuda_check_cpu_init(int thr_id, uint32_t threads)
 }
 
 __host__
-extern "C"
 void cuda_check_cpu_free(int thr_id)
 {
 	if (!init_done) return;
@@ -38,7 +36,6 @@ void cuda_check_cpu_free(int thr_id)
 
 // Target Difficulty
 __host__
-extern "C"
 void cuda_check_cpu_setTarget(const void *ptarget)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(pTarget, ptarget, 32, 0, cudaMemcpyHostToDevice));
@@ -119,7 +116,6 @@ void cuda_checkhash_32(uint32_t threads, uint32_t startNounce, uint32_t *hash, u
 }
 
 __host__
-extern "C"
 uint32_t cuda_check_hash(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_inputHash)
 {
 	cudaMemset(d_resNonces[thr_id], 0xff, sizeof(uint32_t));
@@ -187,7 +183,6 @@ void cuda_checkhash_64_suppl(uint32_t startNounce, uint32_t *hash, uint32_t *res
 }
 
 __host__
-extern "C"
 uint32_t cuda_check_hash_suppl(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_inputHash, uint8_t numNonce)
 {
 	uint32_t rescnt, result = 0;
@@ -246,7 +241,6 @@ void cuda_check_hash_branch_64(uint32_t threads, uint32_t startNounce, uint32_t 
 }
 
 __host__
-extern "C"
 uint32_t cuda_check_hash_branch(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_nonceVector, uint32_t *d_inputHash, int order)
 {
 	const uint32_t threadsperblock = 256;
@@ -289,7 +283,6 @@ __global__ void nvcc_get_arch(int *d_version)
 }
 
 __host__
-extern "C"
 int cuda_get_arch(int thr_id)
 {
 	int *d_version;

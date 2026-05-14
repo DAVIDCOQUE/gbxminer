@@ -1519,7 +1519,6 @@ static __thread uint32_t *Trans3 = NULL;
 static __thread cudaStream_t neoscrypt_stream[MAX_GPUS] = { NULL };
 
 __host__
-extern "C"
 void neoscrypt_init(int thr_id, uint32_t threads)
 {
 	cuda_get_arch(thr_id);
@@ -1545,7 +1544,6 @@ static void neoscrypt_graph_destroy(int thr_id);
 #endif
 
 __host__
-extern "C"
 void neoscrypt_free(int thr_id)
 {
 #if CUDART_VERSION >= 10000
@@ -1718,7 +1716,6 @@ static bool neoscrypt_graph_capture(
 #endif /* CUDART_VERSION >= 10000 */
 
 __host__
-extern "C"
 void neoscrypt_hash_k4(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *resNonces, bool stratum)
 {
 	cudaStream_t stream = neoscrypt_stream[thr_id];
@@ -1806,7 +1803,6 @@ sequential_launch:
 }
 
 __host__
-extern "C"
 void neoscrypt_setBlockTarget(uint32_t* const pdata, uint32_t* const target)
 {
 	uint32_t PaddedMessage[64];

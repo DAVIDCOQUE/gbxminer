@@ -716,7 +716,6 @@ fugue256_gpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, void *outp
 }
 
 __host__
-extern "C"
 void fugue256_cpu_init(int thr_id, uint32_t threads)
 {
 	// Initialize lookup tables using global memory (replacing deprecated texture references)
@@ -730,7 +729,6 @@ void fugue256_cpu_init(int thr_id, uint32_t threads)
 }
 
 __host__
-extern "C"
 void fugue256_cpu_free(int thr_id)
 {
 	cudaFree(d_fugue256_hashoutput[thr_id]);
@@ -742,7 +740,6 @@ void fugue256_cpu_free(int thr_id)
 }
 
 __host__
-extern "C"
 void fugue256_cpu_setBlock(int thr_id, void *data, void *pTargetIn)
 {
 	sph_fugue256_context ctx_fugue_const;
@@ -756,7 +753,6 @@ void fugue256_cpu_setBlock(int thr_id, void *data, void *pTargetIn)
 }
 
 __host__
-extern "C"
 void fugue256_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, void *outputHashes, uint32_t *nounce)
 {
 #if USE_SHARED

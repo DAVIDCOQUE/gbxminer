@@ -98,7 +98,6 @@ void groestlcoin_gpu_hash_quad(uint32_t threads, uint32_t startNounce, uint32_t 
 }
 
 __host__
-extern "C"
 void groestlcoin_cpu_init(int thr_id, uint32_t threads)
 {
 	// to check if the binary supports SM3+
@@ -108,14 +107,12 @@ void groestlcoin_cpu_init(int thr_id, uint32_t threads)
 }
 
 __host__
-extern "C"
 void groestlcoin_cpu_free(int thr_id)
 {
 	cudaFree(d_resultNonce[thr_id]);
 }
 
 __host__
-extern "C"
 void groestlcoin_cpu_setBlock(int thr_id, void *data, void *pTargetIn)
 {
 	uint32_t msgBlock[32] = { 0 };
@@ -138,7 +135,6 @@ void groestlcoin_cpu_setBlock(int thr_id, void *data, void *pTargetIn)
 }
 
 __host__
-extern "C"
 void groestlcoin_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *resNonce)
 {
 	uint32_t threadsperblock = 256;
