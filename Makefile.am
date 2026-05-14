@@ -103,7 +103,7 @@ endif
 
 if !ARCH_ARM64
   # equihash
-  gbxminer_SOURCES += equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu equi/eq_iface_stub.cu
+  gbxminer_SOURCES += equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu
 
 endif
 
