@@ -120,6 +120,7 @@ jobs:
             ./configure \
               CXXFLAGS="-O3 -march=armv8-a" \
               LDFLAGS="-L${CUDA_HOME}/lib64/stubs" \
+              --host=aarch64-linux-gnu \
               --with-cuda="$CUDA_HOME" \
               --with-nvml=libnvidia-ml.so \
               --with-nvrtc
@@ -278,17 +279,23 @@ jobs:
             PKG_CONFIG="pkg-config --static" \
             --with-cuda="$CUDA_PATH_MSYS"
 
-      - name: Patch Makefile for MSVC runtime libs
+      - name: Patch Makefile for MSVC and Windows runtime libs
         shell: msys2 {0}
         run: |
-          # -lvcruntime and -lmsvcprt cannot go in LDFLAGS because they
-          # conflict with the MinGW CRT during configure CC tests.  Inject
-          # them only into the final binary link by patching the Makefile.
-          # The link command ends with -lcuda; append our libs after it.
-          # Append MSVC and CUDA runtime libs after the last -lcuda on the
-          # link line.  Use a word-boundary-aware pattern that matches
-          # -lcuda whether it is followed by a space or end-of-line.
-          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -lcuda -lvcruntime -lmsvcprt|g' Makefile
+          # Inject all Windows/MSVC runtime libs into the final link rule only.
+          # Cannot go in configure LDFLAGS (breaks conftest links).
+          #   vcruntime140 — vcruntime140.dll (__GSHandlerCheck*)
+          #   msvcp140     — msvcp140.dll (std::string, RTTI)
+          #   ucrt         — ucrtbase.dll (printf/fprintf from MSVC headers)
+          #   ws2_32       — winsock2 (__imp_WSA*, __imp_socket)
+          #   winmm        — multimedia (__imp_timeBeginPeriod)
+          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -LC:/winkits-ucrt -lcuda -lvcruntime140 -lmsvcp140 -lucrt -lws2_32 -lwinmm|g' Makefile
+
+          # HAVE_WINDOWS is not reliably set by configure in the MSYS2 cross
+          # environment, so winansi.c is excluded from the automake SOURCES.
+          # Compile it manually and inject the object into the link rule.
+          gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing               -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
+          sed -i "s|equi/gbxminer-equi-stratum.o|compat/gbxminer-winansi.o equi/gbxminer-equi-stratum.o|" Makefile
 
       - name: Build
         shell: msys2 {0}
