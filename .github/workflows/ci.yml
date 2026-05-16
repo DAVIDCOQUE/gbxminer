@@ -118,9 +118,10 @@ jobs:
           # absent on GPU-less CI runners.  Point the linker at the toolkit stub.
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure \
+              CC=gcc CXX=g++ \
               CXXFLAGS="-O3 -march=armv8-a" \
               LDFLAGS="-L${CUDA_HOME}/lib64/stubs" \
-              --host=aarch64-linux-gnu \
+              --build=aarch64-unknown-linux-gnu \
               --with-cuda="$CUDA_HOME" \
               --with-nvml=libnvidia-ml.so \
               --with-nvrtc
@@ -295,7 +296,8 @@ jobs:
           # environment, so winansi.c is excluded from the automake SOURCES.
           # Compile it manually and inject the object into the link rule.
           gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing               -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
-          sed -i "s|equi/gbxminer-equi-stratum.o|compat/gbxminer-winansi.o equi/gbxminer-equi-stratum.o|" Makefile
+          # Inject winansi.o only into the link rule (the line containing gbxminer.exe)
+          sed -i "/gbxminer\.exe/ s|equi/gbxminer-equi-stratum\.o|compat/gbxminer-winansi.o equi/gbxminer-equi-stratum.o|" Makefile
 
       - name: Build
         shell: msys2 {0}
