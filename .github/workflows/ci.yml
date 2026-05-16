@@ -118,13 +118,29 @@ jobs:
           # absent on GPU-less CI runners.  Point the linker at the toolkit stub.
           CUDA_CFLAGS="-O3 -lineno -Xcompiler -Wall -D_FORCE_INLINES" \
             ./configure \
-              CC=gcc CXX=g++ \
               CXXFLAGS="-O3 -march=armv8-a" \
               LDFLAGS="-L${CUDA_HOME}/lib64/stubs" \
-              --build=aarch64-unknown-linux-gnu \
               --with-cuda="$CUDA_HOME" \
               --with-nvml=libnvidia-ml.so \
               --with-nvrtc
+
+      - name: Patch Makefile for aarch64 (remove x86 SSE sources)
+        run: |
+          # configure.ac sets ARCH_ARM64 based on $host_cpu, but on the
+          # ubuntu-24.04-arm native runner autoconf detects x86_64 as the
+          # build machine due to cached values, so ARCH_ARM64 is never set
+          # and x86-only SSE sources (equi/blake2/blake2bx.cpp,
+          # equi/equihash.cpp, equi/cuda_equi.cu) are included.
+          # Remove them directly from the generated Makefile.
+          sed -i 's| equi/equi\.cpp||g;
+                  s| equi/blake2/blake2bx\.cpp||g;
+                  s| equi/gbxminer-blake2bx\.o||g;
+                  s| equi/equihash\.cpp||g;
+                  s| equi/gbxminer-equihash\.o||g;
+                  s| equi/cuda_equi\.cu||g;
+                  s| equi/cuda_equi\.o||g;
+                  s| equi/eq_iface_stub\.cu||g;
+                  s| equi/eq_iface_stub\.o||g' Makefile
 
       - name: Build
         run: make -j"$(nproc)"
@@ -290,7 +306,7 @@ jobs:
           #   ucrt         — ucrtbase.dll (printf/fprintf from MSVC headers)
           #   ws2_32       — winsock2 (__imp_WSA*, __imp_socket)
           #   winmm        — multimedia (__imp_timeBeginPeriod)
-          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -LC:/winkits-ucrt -lcuda -lvcruntime140 -lmsvcp140 -lucrt -lws2_32 -lwinmm|g' Makefile
+          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -LC:/winkits-ucrt -lcuda -lvcruntime140 -lmsvcprt -lucrt -lws2_32 -lwinmm|g' Makefile
 
           # HAVE_WINDOWS is not reliably set by configure in the MSYS2 cross
           # environment, so winansi.c is excluded from the automake SOURCES.
