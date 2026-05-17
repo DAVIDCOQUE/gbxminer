@@ -127,21 +127,24 @@ jobs:
       - name: Patch Makefile for aarch64 (remove x86 SSE sources)
         run: |
           # configure.ac sets ARCH_ARM64 based on $host_cpu, but on the
-          # ubuntu-24.04-arm native runner autoconf detects x86_64 as the
-          # build machine due to cached values, so ARCH_ARM64 is never set
-          # and x86-only SSE sources (equi/blake2/blake2bx.cpp,
-          # equi/equihash.cpp, equi/cuda_equi.cu) are included.
-          # Remove them directly from the generated Makefile.
-          sed -i 's| equi/equi\.cpp||g;
-                  s| equi/blake2/blake2bx\.cpp||g;
-                  s| equi/gbxminer-blake2bx\.o||g;
-                  s| equi/equihash\.cpp||g;
-                  s| equi/gbxminer-equihash\.o||g;
-                  s| equi/cuda_equi\.cu||g;
-                  s| equi/cuda_equi\.o||g;
-                  s| equi/eq_iface_stub\.cu||g;
-                  s| equi/eq_iface_stub\.o||g' Makefile
-
+          # ubuntu-24.04-arm native runner the conditional is not triggered,
+          # so x86 SSE-only equihash sources get included.  Remove them.
+          sed -i \
+            -e 's| equi/equi\.cpp||g' \
+            -e 's| equi/blake2/blake2bx\.cpp||g' \
+            -e 's| equi/gbxminer-blake2bx\.o||g' \
+            -e 's| equi/equihash\.cpp||g' \
+            -e 's| equi/gbxminer-equihash\.o||g' \
+            -e 's| equi/cuda_equi\.cu||g' \
+            -e 's| equi/cuda_equi\.o||g' \
+            -e 's| equi/eq_iface_stub\.cu||g' \
+            -e 's| equi/eq_iface_stub\.o||g' \
+            Makefile
+          # Remove stale Makefile rules whose source file was just removed.
+          # A rule with no source causes "g++: fatal error: no input files".
+          for tgt in equi/gbxminer-equihash.o equi/gbxminer-blake2bx.o equi/cuda_equi.o equi/eq_iface_stub.o; do
+            grep -v "^${tgt}:" Makefile > Makefile.tmp && mv Makefile.tmp Makefile
+          done
       - name: Build
         run: make -j"$(nproc)"
 
@@ -313,7 +316,7 @@ jobs:
           # Compile it manually and inject the object into the link rule.
           gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing               -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
           # Inject winansi.o only into the link rule (the line containing gbxminer.exe)
-          sed -i "/gbxminer\.exe/ s|equi/gbxminer-equi-stratum\.o|compat/gbxminer-winansi.o equi/gbxminer-equi-stratum.o|" Makefile
+          sed -i "s|\(.*gbxminer\.exe.*\)equi/gbxminer-equi-stratum\.o|\1compat/gbxminer-winansi.o equi/gbxminer-equi-stratum.o|g" Makefile
 
       - name: Build
         shell: msys2 {0}
