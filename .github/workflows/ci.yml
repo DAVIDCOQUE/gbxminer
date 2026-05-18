@@ -126,30 +126,26 @@ jobs:
 
       - name: Patch Makefile for aarch64 (remove x86 SSE sources)
         run: |
-          # configure.ac's ARCH_ARM64 conditional is not triggered on the
-          # ubuntu-24.04-arm native runner. Remove x86 SSE-only sources.
-          # The sed patterns use both leading-space and tab variants since
-          # automake may format continuation lines either way.
+          # configure.ac ARCH_ARM64 is not triggered on ubuntu-24.04-arm.
+          # Remove x86 SSE-only sources from SOURCES lists and link lines.
           sed -i \
-            -e 's|[ \t]equi/equi\.cpp||g' \
-            -e 's|[ \t]equi/blake2/blake2bx\.cpp||g' \
-            -e 's|[ \t]equi/gbxminer-blake2bx\.o||g' \
-            -e 's|[ \t]equi/equihash\.cpp||g' \
-            -e 's|[ \t]equi/gbxminer-equihash\.o||g' \
-            -e 's|[ \t]equi/cuda_equi\.cu||g' \
-            -e 's|[ \t]equi/cuda_equi\.o||g' \
-            -e 's|[ \t]equi/eq_iface_stub\.cu||g' \
-            -e 's|[ \t]equi/eq_iface_stub\.o||g' \
-            -e '/^equi\/gbxminer-blake2bx\.o:/d' \
-            -e '/^equi\/gbxminer-equihash\.o:/d' \
-            -e '/^equi\/cuda_equi\.o:/d' \
-            -e '/^equi\/eq_iface_stub\.o:/d' \
+            -e 's|[[:space:]]equi/equi\.cpp||g' \
+            -e 's|[[:space:]]equi/blake2/blake2bx\.cpp||g' \
+            -e 's|[[:space:]]equi/gbxminer-blake2bx\.o||g' \
+            -e 's|[[:space:]]equi/equihash\.cpp||g' \
+            -e 's|[[:space:]]equi/gbxminer-equihash\.o||g' \
+            -e 's|[[:space:]]equi/cuda_equi\.cu||g' \
+            -e 's|[[:space:]]equi/cuda_equi\.o||g' \
+            -e 's|[[:space:]]equi/eq_iface_stub\.cu||g' \
+            -e 's|[[:space:]]equi/eq_iface_stub\.o||g' \
             Makefile
-          # Also remove any continuation-line recipe that follows a deleted rule.
-          # Deleted rule headers leave orphaned tab-recipe lines; remove them.
-          # Use awk to strip recipe lines following a blank/deleted target.
+          # Delete the explicit compilation rules for the removed objects.
+          # blake2bx lives in equi/blake2/ subdir — include the full path.
           awk '
-            /^equi\/(gbxminer-blake2bx|gbxminer-equihash|cuda_equi|eq_iface_stub)\.o:/ { skip=1; next }
+            /^equi\/blake2\/gbxminer-blake2bx\.o:/ { skip=1; next }
+            /^equi\/gbxminer-equihash\.o:/           { skip=1; next }
+            /^equi\/cuda_equi\.o:/                    { skip=1; next }
+            /^equi\/eq_iface_stub\.o:/                { skip=1; next }
             skip && /^\t/ { next }
             { skip=0; print }
           ' Makefile > Makefile.tmp && mv Makefile.tmp Makefile
@@ -317,7 +313,7 @@ jobs:
           #   ucrt         — ucrtbase.dll (printf/fprintf from MSVC headers)
           #   ws2_32       — winsock2 (__imp_WSA*, __imp_socket)
           #   winmm        — multimedia (__imp_timeBeginPeriod)
-          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -LC:/winkits-ucrt -lcuda -lvcruntime140 -lmsvcprt -lucrt -lws2_32 -lwinmm|g' Makefile
+          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -LC:/winkits-ucrt -lcuda -lvcruntime -lvcruntime140 -lmsvcprt -lucrt -lws2_32 -lwinmm|g' Makefile
 
           # HAVE_WINDOWS is not reliably set by configure in the MSYS2 cross
           # environment, so winansi.c is excluded from the automake SOURCES.
