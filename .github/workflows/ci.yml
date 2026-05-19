@@ -126,24 +126,27 @@ jobs:
 
       - name: Patch Makefile for aarch64 (remove x86 SSE sources)
         run: |
-          # configure.ac ARCH_ARM64 not triggered — remove x86 SSE-only sources.
-          # Automake generates objects in multiple places: SOURCES assignment,
-          # am__objects variable, and inline in the link rule.  Strip all three.
-          X86_OBJS="equi/gbxminer-equi.o equi/blake2/gbxminer-blake2bx.o equi/gbxminer-equihash.o equi/cuda_equi.o equi/eq_iface_stub.o"
-          X86_SRCS="equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu equi/eq_iface_stub.cu"
-          for token in $X86_OBJS $X86_SRCS; do
-            sed -i "s|[[:space:]]${token}||g; s|^${token}[[:space:]]||g; s|^${token}$||g" Makefile
-          done
-          # Delete stale compilation rule headers and their recipes
-          awk '
-            /^equi\/gbxminer-equi\.o:/                 { skip=1; next }
-            /^equi\/blake2\/gbxminer-blake2bx\.o:/    { skip=1; next }
-            /^equi\/gbxminer-equihash\.o:/              { skip=1; next }
-            /^equi\/cuda_equi\.o:/                      { skip=1; next }
-            /^equi\/eq_iface_stub\.o:/                  { skip=1; next }
-            skip && /^\t/ { next }
-            { skip=0; print }
-          ' Makefile > Makefile.tmp && mv Makefile.tmp Makefile
+          # configure.ac ARCH_ARM64 is not triggered on ubuntu-24.04-arm.
+          # Use config.status to force the conditional, regenerating the Makefile
+          # with ARCH_ARM64=true so automake excludes the x86-SSE equihash sources.
+          # config.status accepts shell variable overrides via --recheck.
+          #
+          # Simpler alternative that always works: patch the am__append variables
+          # that automake uses to conditionally include sources.
+          # The generated Makefile contains:
+          #   @ARCH_ARM64_FALSE@am__append_N = equi/equi.cpp ... (x86 sources)
+          # When ARCH_ARM64 is false, automake activates this append.
+          # Set ARCH_ARM64=true in config.status and regenerate.
+          sed -i "s|^ARCH_ARM64_FALSE = |ARCH_ARM64_FALSE = #|" Makefile
+          sed -i "s|^ARCH_ARM64_TRUE = #||" Makefile
+          # Force re-evaluation: swap the conditional flags
+          if grep -q "^ARCH_ARM64_FALSE" Makefile; then
+            # Direct object removal as fallback
+            sed -i               -e "/gbxminer-blake2bx/d"               -e "/gbxminer-equihash/d"               -e "/cuda_equi\.o/d"               -e "/eq_iface_stub/d"               -e "s| equi/gbxminer-equi\.o||g"               Makefile
+          fi
+          # The objects may also appear in the link rule expanded form.
+          # Use a direct grep+sed to remove them from the link command line.
+          sed -i             -e "s|equi/gbxminer-equi\.o ||g"             -e "s|equi/blake2/gbxminer-blake2bx\.o ||g"             -e "s|equi/gbxminer-equihash\.o ||g"             -e "s| equi/cuda_equi\.o||g"             -e "s| equi/eq_iface_stub\.o||g"             Makefile
       - name: Build
         run: make -j"$(nproc)"
 
@@ -295,7 +298,7 @@ jobs:
           # /EHs-c-: disable C++ EH tables (__GSHandlerCheck_EH4)
           # /GS-:    disable buffer security cookie (__security_check_cookie)
           # /GR-:    disable RTTI (eliminates ??_R4 type descriptor symbols)
-          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler /EHs-c- -Xcompiler /GS- -Xcompiler /GR- -D_FORCE_INLINES" \
+          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler -EHs-c- -Xcompiler -GS- -Xcompiler -GR- -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
