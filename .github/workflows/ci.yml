@@ -127,22 +127,20 @@ jobs:
       - name: Patch Makefile for aarch64 (remove x86 SSE sources)
         run: |
           # configure.ac ARCH_ARM64 not triggered — remove x86 SSE-only sources.
-          # Use three separate sed passes:
-          #  1. Remove objects from any position on a line (not just after space)
-          #  2. Delete stale compilation rule headers
-          #  3. Strip orphaned recipe lines with awk
-          X86_OBJS="equi/blake2/gbxminer-blake2bx.o equi/gbxminer-equihash.o equi/cuda_equi.o equi/eq_iface_stub.o"
+          # Automake generates objects in multiple places: SOURCES assignment,
+          # am__objects variable, and inline in the link rule.  Strip all three.
+          X86_OBJS="equi/gbxminer-equi.o equi/blake2/gbxminer-blake2bx.o equi/gbxminer-equihash.o equi/cuda_equi.o equi/eq_iface_stub.o"
           X86_SRCS="equi/equi.cpp equi/blake2/blake2bx.cpp equi/equihash.cpp equi/cuda_equi.cu equi/eq_iface_stub.cu"
           for token in $X86_OBJS $X86_SRCS; do
-            # Match the token whether preceded by space, tab, or at start of line
             sed -i "s|[[:space:]]${token}||g; s|^${token}[[:space:]]||g; s|^${token}$||g" Makefile
           done
           # Delete stale compilation rule headers and their recipes
           awk '
-            /^equi\/blake2\/gbxminer-blake2bx\.o:/ { skip=1; next }
-            /^equi\/gbxminer-equihash\.o:/           { skip=1; next }
-            /^equi\/cuda_equi\.o:/                    { skip=1; next }
-            /^equi\/eq_iface_stub\.o:/                { skip=1; next }
+            /^equi\/gbxminer-equi\.o:/                 { skip=1; next }
+            /^equi\/blake2\/gbxminer-blake2bx\.o:/    { skip=1; next }
+            /^equi\/gbxminer-equihash\.o:/              { skip=1; next }
+            /^equi\/cuda_equi\.o:/                      { skip=1; next }
+            /^equi\/eq_iface_stub\.o:/                  { skip=1; next }
             skip && /^\t/ { next }
             { skip=0; print }
           ' Makefile > Makefile.tmp && mv Makefile.tmp Makefile
@@ -294,7 +292,10 @@ jobs:
           # -Xcompiler /W3 omitted: MSYS2 converts any token starting with "/" as
           # a POSIX path, expanding /W3 to D:/a/_temp/msys64/W3 before it
           # reaches nvcc.  The default cl.exe warning level is acceptable.
-          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -D_FORCE_INLINES" \
+          # /EHs-c-: disable C++ EH tables (__GSHandlerCheck_EH4)
+          # /GS-:    disable buffer security cookie (__security_check_cookie)
+          # /GR-:    disable RTTI (eliminates ??_R4 type descriptor symbols)
+          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler /EHs-c- -Xcompiler /GS- -Xcompiler /GR- -D_FORCE_INLINES" \
           ./configure \
             CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
             PKG_CONFIG="pkg-config --static" \
