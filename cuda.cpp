@@ -1,7 +1,9 @@
 ﻿#include <stdio.h>
 #include <memory.h>
 #include <string.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <map>
 
 // include thrust
@@ -271,7 +273,11 @@ void cuda_reset_device(int thr_id, bool *init)
 		restart_threads();
 		cudaDeviceSynchronize();
 		while (cudaStreamQuery(NULL) == cudaErrorNotReady)
+#ifdef _WIN32
+			Sleep(1);
+#else
 			usleep(1000);
+#endif
 	}
 	cudaDeviceReset();
 	if (opt_cudaschedule >= 0) {
@@ -338,7 +344,7 @@ int cuda_gpu_info(struct cgpu_info *gpu)
 // Zeitsynchronisations-Routine von cudaminer mit CPU sleep
 // Note: if you disable all of these calls, CPU usage will hit 100%
 typedef struct { double value[8]; } tsumarray;
-cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
+extern "C" cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
 {
 	cudaError_t result = cudaSuccess;
 	if (abort_flag)
@@ -354,7 +360,11 @@ cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
 		double tsleep = 0.95 * tsum[situation].value[thr_id];
 		if (cudaStreamQuery(stream) == cudaErrorNotReady)
 		{
+#ifdef _WIN32
+			Sleep((DWORD)(1e3*tsleep));
+#else
 			usleep((useconds_t)(1e6*tsleep));
+#endif
 			struct timeval tv_start, tv_end;
 			gettimeofday(&tv_start, NULL);
 			result = cudaStreamSynchronize(stream);
@@ -368,10 +378,14 @@ cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
 	return result;
 }
 
-void cudaReportHardwareFailure(int thr_id, cudaError_t err, const char* func)
+extern "C" void cudaReportHardwareFailure(int thr_id, cudaError_t err, const char* func)
 {
 	struct cgpu_info *gpu = &thr_info[thr_id].gpu;
 	gpu->hw_errors++;
 	gpulog(LOG_ERR, thr_id, "%s %s", func, cudaGetErrorString(err));
+#ifdef _WIN32
+	Sleep(1000);
+#else
 	sleep(1);
+#endif
 }
