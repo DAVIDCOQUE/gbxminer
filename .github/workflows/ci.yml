@@ -142,7 +142,13 @@ jobs:
           # Force re-evaluation: swap the conditional flags
           if grep -q "^ARCH_ARM64_FALSE" Makefile; then
             # Direct object removal as fallback
-            sed -i               -e "/gbxminer-blake2bx/d"               -e "/gbxminer-equihash/d"               -e "/cuda_equi\.o/d"               -e "/eq_iface_stub/d"               -e "s| equi/gbxminer-equi\.o||g"               Makefile
+            sed -i \
+              -e "/gbxminer-blake2bx/d" \
+              -e "/gbxminer-equi\.o/d" \
+              -e "/gbxminer-equihash/d" \
+              -e "/cuda_equi\.o/d" \
+              -e "/eq_iface_stub/d" \
+              Makefile
           fi
           # The objects may also appear in the link rule expanded form.
           # Use a direct grep+sed to remove them from the link command line.
@@ -319,11 +325,15 @@ jobs:
           # HAVE_WINDOWS is not reliably set by configure in the MSYS2 cross
           # environment, so winansi.c is excluded from the automake SOURCES.
           # Compile it manually and inject the object into the link rule.
-          gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing               -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
-          # Append winansi.o to gbxminer_LDADD in the Makefile.
-          # Sed injection into the link command is unreliable through MSYS2
-          # shell quoting; patching LDADD is simpler and portable.
-          sed -i "s|^gbxminer_LDADD = |gbxminer_LDADD = compat/gbxminer-winansi.o |" Makefile
+          gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing \
+              -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
+          # Compile eq_iface_stub.cu with nvcc+cl.exe for MSVC vtable ABI stub.
+          C:/cuda/bin/nvcc.exe -ccbin cl.exe -allow-unsupported-compiler \
+            -Wno-deprecated-gpu-targets -D_WIN32 -I. -IC:/cuda/include \
+            -Xcompiler -EHs-c- -Xcompiler -GS- -Xcompiler -GR- \
+            --std=c++14 -o equi/eq_iface_stub.o -c equi/eq_iface_stub.cu
+          # Append both objects to gbxminer_LDADD.
+          sed -i "s|^gbxminer_LDADD = |gbxminer_LDADD = compat/gbxminer-winansi.o equi/eq_iface_stub.o |" Makefile
 
       - name: Build
         shell: msys2 {0}
