@@ -327,6 +327,14 @@ jobs:
           # Compile it manually and inject the object into the link rule.
           gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing \
               -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
+          # Write eq_iface_stub.cu using printf to avoid YAML heredoc issues.
+          mkdir -p equi
+          printf "#ifdef _WIN32\n" > equi/eq_iface_stub.cu
+          printf "#include \"eqcuda.hpp\"\n" >> equi/eq_iface_stub.cu
+          printf "void eq_cuda_context_interface" >> equi/eq_iface_stub.cu
+          printf "::solve(const char*,unsigned,const char*," >> equi/eq_iface_stub.cu
+          printf "unsigned,fn_cancel,fn_solution,fn_hashdone){}\n" >> equi/eq_iface_stub.cu
+          printf "#endif\n" >> equi/eq_iface_stub.cu
           # Compile eq_iface_stub.cu with nvcc+cl.exe for MSVC vtable ABI stub.
           C:/cuda/bin/nvcc.exe -ccbin cl.exe -allow-unsupported-compiler \
             -Wno-deprecated-gpu-targets -D_WIN32 -I. -IC:/cuda/include \
