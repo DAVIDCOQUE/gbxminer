@@ -244,6 +244,8 @@
     <ClCompile Include="equi\equihash.cpp" />
     <ClCompile Include="nvapi.cpp" />
     <ClCompile Include="nvsettings.cpp" />
+    <ClCompile Include="bitcoin_solo.cpp" />
+    <ClCompile Include="solo_script.cpp" />
     <ClCompile Include="pools.cpp" />
     <ClCompile Include="util.cpp" />
     <ClCompile Include="bench.cpp" />
@@ -365,6 +367,8 @@
     <ClInclude Include="heavy\heavy.h" />
     <ClInclude Include="hefty1.h" />
     <ClInclude Include="algos.h" />
+    <ClInclude Include="bitcoin_solo.h" />
+    <ClInclude Include="solo_script.h" />
     <ClInclude Include="miner.h" />
     <ClInclude Include="nvml.h" />
     <ClInclude Include="quark\cuda_bmw512_sm3.cuh" />

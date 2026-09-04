@@ -153,6 +153,12 @@
     <ClCompile Include="gbxminer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="bitcoin_solo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="solo_script.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="pools.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -366,6 +372,12 @@
       <Filter>Header Files\compat</Filter>
     </ClInclude>
     <ClInclude Include="elist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="bitcoin_solo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="solo_script.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="miner.h">

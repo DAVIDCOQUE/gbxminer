@@ -25,6 +25,8 @@ gbxminer_SOURCES	= elist.h miner.h compat.h \
 			  gbxminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
 			  nvsettings.cpp stubs.cpp \
+			  bitcoin_solo.cpp bitcoin_solo.h \
+			  solo_script.cpp solo_script.h \
 			  heavy/heavy.cu \
 			  heavy/cuda_blake512.cu heavy/cuda_blake512.h \
 			  heavy/cuda_combine.cu heavy/cuda_combine.h \

@@ -716,6 +716,11 @@ struct work {
 	uint32_t scanned_from;
 	uint32_t scanned_to;
 
+	/* bitcoin solo: identifies the block template job that produced this work.
+	 * A plain scalar on purpose - struct work is copied with memcpy(), so it
+	 * must never hold a pointer. The block itself lives in bitcoin_solo.cpp. */
+	uint32_t solo_id;
+
 	/* pok getwork txs */
 	uint32_t tx_count;
 	struct tx txs[POK_MAX_TXS];

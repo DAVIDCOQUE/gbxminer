@@ -50,6 +50,7 @@
 #include "kheavyhash/kheavyhash.h"
 #include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
+#include "bitcoin_solo.h"
 
 #include <cuda_runtime.h>
 
@@ -102,6 +103,7 @@ bool have_stratum = false;
 bool allow_gbt = true;
 bool allow_mininginfo = true;
 bool check_dups = true; //false;
+bool opt_solo_selftest = false;
 bool check_stratum_jobs = false;
 bool opt_submit_stale = false;
 bool submit_old = false;
@@ -308,6 +310,12 @@ Options:\n\
   -n, --ndevs           list cuda devices\n\
   -N, --statsavg        number of samples used to compute hashrate (default: 30)\n\
       --no-gbt          disable getblocktemplate support (height check in solo)\n\
+      --solo            mine solo against a local Bitcoin Core (getblocktemplate)\n\
+      --solo-address=A  payout address, scriptPubKey decoded locally (no wallet RPC)\n\
+      --solo-scriptpubkey=HEX  raw payout scriptPubKey, overrides --solo-address\n\
+      --solo-cookie=F   path to the Bitcoin Core .cookie file used for RPC auth\n\
+      --solo-refresh=N  seconds between block template refreshes (default 20)\n\
+      --solo-selftest   run the solo mining self-tests and exit\n\
       --no-longpoll     disable X-Long-Polling support\n\
       --no-stratum      disable X-Stratum support\n\
       --no-extranonce   disable extranonce subscribe on stratum\n\
@@ -394,6 +402,12 @@ struct option options[] = {
 	{ "no-extranonce", 0, NULL, 1012 },
 	{ "no-gbt", 0, NULL, 1011 },
 	{ "no-longpoll", 0, NULL, 1003 },
+	{ "solo", 0, NULL, 1200 },
+	{ "solo-address", 1, NULL, 1201 },
+	{ "solo-scriptpubkey", 1, NULL, 1202 },
+	{ "solo-cookie", 1, NULL, 1203 },
+	{ "solo-refresh", 1, NULL, 1204 },
+	{ "solo-selftest", 0, NULL, 1205 },
 	{ "no-stratum", 0, NULL, 1007 },
 	{ "no-autotune", 0, NULL, 1004 },  // scrypt
 	{ "interactive", 1, NULL, 1050 },  // scrypt
@@ -585,6 +599,9 @@ void proper_exit(int reason)
 	abort_flag = true;
 	usleep(200 * 1000);
 	cuda_shutdown();
+
+	if (opt_solo)
+		solo_shutdown();
 
 	if (reason == EXIT_CODE_OK && app_exit_code != EXIT_CODE_OK) {
 		reason = app_exit_code;
@@ -830,6 +847,11 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		//}
 		return true;
 	}
+
+	/* solo builds and submits the whole block itself; must return before the
+	 * getblocktemplate stale probe and the in-place le32enc() below */
+	if (opt_solo)
+		return solo_submit_block(curl, work);
 
 	/* discard if a newer block was received */
 	stale_work = work->height && work->height < g_work.height;
@@ -1133,6 +1155,10 @@ static bool get_upstream_work(CURL *curl, struct work *work)
 	struct pool_infos *pool = &pools[work->pooln];
 	const char *rpc_req = json_rpc_getwork;
 	json_t *val;
+
+	/* solo mining talks getblocktemplate/submitblock, never getwork */
+	if (opt_solo)
+		return solo_get_work(curl, work);
 
 	gettimeofday(&tv_start, NULL);
 
@@ -1803,7 +1829,7 @@ static void *miner_thread(void *userdata)
 		if (strcmp(work.job_id, g_work.job_id))
 			stratum.job.shares_count = 0;
 
-		if (!opt_benchmark && (g_work.height != work.height || memcmp(work.target, g_work.target, sizeof(work.target))))
+		if (!opt_benchmark && !opt_solo && (g_work.height != work.height || memcmp(work.target, g_work.target, sizeof(work.target))))
 		{
 			if (opt_debug) {
 				uint64_t target64 = g_work.target[7] * 0x100000000ULL + g_work.target[6];
@@ -3169,6 +3195,30 @@ void parse_arg(int key, char *arg)
 	case 1011:
 		allow_gbt = false;
 		break;
+	case 1200:
+		opt_solo = true;
+		break;
+	case 1201:
+		free(opt_solo_address);
+		opt_solo_address = strdup(arg);
+		break;
+	case 1202:
+		free(opt_solo_scriptpubkey);
+		opt_solo_scriptpubkey = strdup(arg);
+		break;
+	case 1203:
+		free(opt_solo_cookie);
+		opt_solo_cookie = strdup(arg);
+		break;
+	case 1204:
+		v = atoi(arg);
+		if (v < 1 || v > 600)
+			show_usage_and_exit(1);
+		opt_solo_refresh = v;
+		break;
+	case 1205:
+		opt_solo_selftest = true;
+		break;
 	case 1012:
 		opt_extranonce = false;
 		break;
@@ -3558,6 +3608,12 @@ int main(int argc, char *argv[])
 	/* parse command line */
 	parse_cmdline(argc, argv);
 
+	/* offline vectors need no Bitcoin Core; --solo adds the live tests later */
+	if (opt_solo_selftest && !opt_solo) {
+		int rc = solo_selftest();
+		proper_exit(rc ? EXIT_CODE_SW_INIT_ERROR : EXIT_CODE_OK);
+	}
+
 	if (!opt_benchmark && !strlen(rpc_url)) {
 		// try default config file (user then binary folder)
 		char defconfig[MAX_PATH] = { 0 };
@@ -3599,12 +3655,41 @@ int main(int argc, char *argv[])
 		opt_extranonce = false; // disable subscribe
 	}
 
+	if (opt_solo) {
+		/* solo owns the upstream path: no stratum, no longpoll, and none of
+		 * the legacy getwork helpers that Bitcoin Core no longer answers */
+		want_stratum = have_stratum = false;
+		want_longpoll = have_longpoll = false;
+		allow_gbt = allow_mininginfo = false;
+		opt_extranonce = false;
+		check_dups = false;
+		if (!strncasecmp(rpc_url, "stratum", 7)) {
+			applog(LOG_ERR, "--solo needs the http:// RPC url of a Bitcoin Core node");
+			proper_exit(EXIT_CODE_USAGE);
+		}
+		if (!solo_init())
+			proper_exit(EXIT_CODE_USAGE);
+	}
+
 	flags = !opt_benchmark && strncmp(rpc_url, "https:", 6)
 	      ? (CURL_GLOBAL_ALL & ~CURL_GLOBAL_SSL)
 	      : CURL_GLOBAL_ALL;
 	if (curl_global_init(flags)) {
 		applog(LOG_ERR, "CURL initialization failed");
 		return EXIT_CODE_SW_INIT_ERROR;
+	}
+
+	if (opt_solo_selftest) {
+		int rc = solo_selftest();
+		CURL *curl = curl_easy_init();
+		if (curl) {
+			rc += solo_selftest_live(curl);
+			curl_easy_cleanup(curl);
+		} else {
+			applog(LOG_ERR, "solo: CURL handle allocation failed");
+			rc++;
+		}
+		proper_exit(rc ? EXIT_CODE_SW_INIT_ERROR : EXIT_CODE_OK);
 	}
 
 	if (opt_background) {
