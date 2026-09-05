@@ -590,6 +590,48 @@ void format_hashrate(double hashrate, char *output)
 		format_hashrate_unit(hashrate, output, "H/s");
 }
 
+/* Total hashes scanned so far, "157.83 GHASH". Same scale steps as the rate. */
+static void format_hashcount(uint64_t hashes, char *output, size_t sz)
+{
+	double h = (double) hashes;
+
+	if (h < 1e6)
+		snprintf(output, sz, "%.0f HASH", h);
+	else if (h < 1e9)
+		snprintf(output, sz, "%.2f MHASH", h * 1e-6);
+	else if (h < 1e12)
+		snprintf(output, sz, "%.2f GHASH", h * 1e-9);
+	else if (h < 1e15)
+		snprintf(output, sz, "%.2f THASH", h * 1e-12);
+	else
+		snprintf(output, sz, "%.2f PHASH", h * 1e-15);
+}
+
+/* "MSI NVIDIA GeForce RTX 3060" -> "RTX 3060": only leading vendor/brand words
+ * are dropped, so the model itself is never lost whatever the card is. */
+static void short_device_name(const char *name, char *output, size_t sz)
+{
+	static const char *skip[] = {
+		"NVIDIA", "GeForce", "MSI", "ASUS", "ASUSTeK", "EVGA", "Gigabyte",
+		"GIGABYTE", "Zotac", "ZOTAC", "Palit", "Gainward", "PNY", "Inno3D",
+		"Colorful", "GALAX", "KFA2", "Manli", "Leadtek", "AFOX", "Maxsun"
+	};
+	const char *p = name;
+
+	while (*p) {
+		size_t i, len = 0;
+		while (p[len] && p[len] != ' ') len++;
+		for (i = 0; i < ARRAY_SIZE(skip); i++)
+			if (len == strlen(skip[i]) && !strncmp(p, skip[i], len))
+				break;
+		if (i == ARRAY_SIZE(skip))
+			break;                  /* first word that is part of the model */
+		p += len;
+		while (*p == ' ') p++;
+	}
+	snprintf(output, sz, "%s", *p ? p : name);
+}
+
 /**
  * Exit app
  */
@@ -1692,6 +1734,7 @@ static void *miner_thread(void *userdata)
 	struct cgpu_info * cgpu = &thr_info[thr_id].gpu;
 	struct work work;
 	uint64_t loopcnt = 0;
+	uint64_t thr_hashes = 0;
 	uint32_t max_nonce;
 	uint32_t end_nonce = UINT32_MAX / opt_n_threads * (thr_id + 1) - (thr_id + 1);
 	time_t tm_rate_log = 0;
@@ -2201,6 +2244,8 @@ static void *miner_thread(void *userdata)
 			goto out;
 		}
 
+		thr_hashes += hashes_done;
+
 		if (opt_led_mode == LED_MODE_MINING)
 			gpu_led_off(dev_id);
 
@@ -2282,7 +2327,20 @@ static void *miner_thread(void *userdata)
 		/* output */
 		if (!opt_quiet && loopcnt > 1 && (time(NULL) - tm_rate_log) > opt_maxlograte) {
 			format_hashrate(thr_hashrates[thr_id], s);
-			gpulog(LOG_INFO, thr_id, "%s, %s", device_name[dev_id], s);
+			if (opt_solo) {
+				char gpuname[64], hcnt[24], blocks[48];
+				short_device_name(device_name[dev_id], gpuname, sizeof(gpuname));
+				format_hashcount(thr_hashes, hcnt, sizeof(hcnt));
+				if (solo_blocks_found > solo_blocks_accepted)
+					snprintf(blocks, sizeof(blocks), "%u (CANDIDATOS: %u)",
+						solo_blocks_accepted, solo_blocks_found);
+				else
+					snprintf(blocks, sizeof(blocks), "%u", solo_blocks_accepted);
+				applog(LOG_INFO, "BTC SOLO #%d: %s | %s | HASHING | %s | BLOQUES: %s",
+					gpu_threads > 1 ? thr_id : dev_id, gpuname, s, hcnt, blocks);
+			} else {
+				gpulog(LOG_INFO, thr_id, "%s, %s", device_name[dev_id], s);
+			}
 			tm_rate_log = time(NULL);
 		}
 

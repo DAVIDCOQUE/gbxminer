@@ -33,6 +33,10 @@ extern int   opt_solo_refresh;
 /* testing only: mine at this difficulty instead of the network target */
 extern double opt_solo_test_diff;
 
+/* headers that met the network target, and how many of them Core kept */
+extern unsigned int solo_blocks_found;
+extern unsigned int solo_blocks_accepted;
+
 /* Resolve the payout scriptPubKey and the RPC credentials. Called once, after
  * the pool array is initialised, because cookie auth is injected into it. */
 bool solo_init(void);

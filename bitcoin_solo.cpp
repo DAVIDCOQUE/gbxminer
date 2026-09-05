@@ -36,6 +36,9 @@ char *opt_solo_cookie = NULL;
 int   opt_solo_refresh = 20;
 double opt_solo_test_diff = 0.;
 
+unsigned int solo_blocks_found = 0;
+unsigned int solo_blocks_accepted = 0;
+
 /* ---------------------------------------------------------------- state -- */
 
 struct solo_tx {
@@ -395,7 +398,7 @@ bool solo_get_work(CURL *curl, struct work *work)
 
 	if (tpl->height != g_last_announced) {
 		g_last_announced = tpl->height;
-		applog(LOG_BLUE, "solo: block %u, %u tx, reward %.8f BTC, diff %.3f",
+		applog(LOG_BLUE, "BTC SOLO: NEW BLOCK %u | %u TX | REWARD %.8f BTC | DIFF %.0f",
 			tpl->height, tpl->tx_count,
 			(double) tpl->coinbasevalue / 1e8,
 			target_to_diff(tpl->target));
@@ -533,6 +536,9 @@ bool solo_submit_block(CURL *curl, struct work *work)
 		return true;
 	}
 	solo_bin2hex_rev(blockid, (const uint8_t *) hash, 32);
+	solo_blocks_found++;
+	applog(LOG_NOTICE, "BTC SOLO: BLOCK FOUND! | HEIGHT %u | HASH %s",
+		tpl->height, blockid);
 
 	/* header + CompactSize(tx count) + coinbase + template transactions */
 	blklen = 80 + 9 + job->coinbase_len;
@@ -578,8 +584,8 @@ bool solo_submit_block(CURL *curl, struct work *work)
 	sprintf(req, "{\"method\":\"submitblock\",\"params\":[\"%s\"],\"id\":1}\r\n", hex);
 	free(hex);
 
-	applog(LOG_NOTICE, "solo: submitting block %u (%u tx, %lu bytes) %s",
-		tpl->height, tpl->tx_count + 1, (unsigned long) blklen, blockid);
+	applog(LOG_NOTICE, "BTC SOLO: SUBMITTING BLOCK TO BITCOIN CORE... | HEIGHT %u | "
+		"%u TX | %lu BYTES", tpl->height, tpl->tx_count + 1, (unsigned long) blklen);
 
 	/* not solo_rpc(): a successful submitblock trips its error path */
 	val = json_rpc_call_pool(curl, &pools[cur_pooln], req, false, false, NULL);
@@ -592,22 +598,24 @@ bool solo_submit_block(CURL *curl, struct work *work)
 		err = json_object_get(val, "error");
 		if (res && json_is_string(res)) {
 			const char *reason = json_string_value(res);
-			applog(LOG_WARNING, "solo: block %u rejected: %s", tpl->height, reason);
+			applog(LOG_WARNING, "BTC SOLO: BLOCK REJECTED | HEIGHT %u | REASON: %s",
+				tpl->height, reason);
 			/* the chain moved on between finding and sending; not our bug */
 			if (!strcmp(reason, "duplicate") || !strcmp(reason, "inconclusive") ||
 			    !strcmp(reason, "duplicate-inconclusive"))
-				applog(LOG_INFO, "solo: another block for this height arrived first");
+				applog(LOG_INFO, "BTC SOLO: another block for this height arrived first");
 		} else if (err && !json_is_null(err)) {
 			json_t *msg = json_object_get(err, "message");
-			applog(LOG_WARNING, "solo: block %u rejected: %s", tpl->height,
+			applog(LOG_WARNING, "BTC SOLO: BLOCK REJECTED | HEIGHT %u | REASON: %s",
+				tpl->height,
 				msg && json_is_string(msg) ? json_string_value(msg) : "unknown error");
 		} else {
-			applog(LOG_WARNING, "solo: block %u did not become the chain tip",
-				tpl->height);
+			applog(LOG_WARNING, "BTC SOLO: BLOCK REJECTED | HEIGHT %u | "
+				"REASON: did not become the chain tip", tpl->height);
 		}
 	} else if (!accepted) {
-		applog(LOG_WARNING, "solo: block %u submission got no reply and did not "
-			"become the chain tip", tpl->height);
+		applog(LOG_WARNING, "BTC SOLO: BLOCK REJECTED | HEIGHT %u | REASON: no reply "
+			"from Bitcoin Core and did not become the chain tip", tpl->height);
 	}
 	if (val)
 		json_decref(val);
@@ -615,7 +623,9 @@ bool solo_submit_block(CURL *curl, struct work *work)
 	if (accepted) {
 		pools[work->pooln].accepted_count++;
 		pools[work->pooln].solved_count++;
-		applog(LOG_NOTICE, "*** BLOCK %u ACCEPTED *** %s", tpl->height, blockid);
+		solo_blocks_accepted++;
+		applog(LOG_NOTICE, "BTC SOLO: BLOCK ACCEPTED! | HEIGHT %u | HASH %s",
+			tpl->height, blockid);
 	} else {
 		pools[work->pooln].rejected_count++;
 	}
