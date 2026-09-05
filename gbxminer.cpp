@@ -3540,6 +3540,15 @@ BOOL WINAPI ConsoleHandler(DWORD dwType)
 }
 #endif
 
+/* argv scan for options that have to act before getopt runs */
+static bool argv_has(int argc, char *argv[], const char *opt)
+{
+	for (int i = 1; i < argc; i++)
+		if (!strcmp(argv[i], opt))
+			return true;
+	return false;
+}
+
 int main(int argc, char *argv[])
 {
 	struct thr_info *thr;
@@ -3590,6 +3599,13 @@ int main(int argc, char *argv[])
 #endif
 	if (num_cpus < 1)
 		num_cpus = 1;
+
+	/* The offline solo vectors need no GPU, and cuda_num_devices() exits when
+	 * the driver is older than the toolkit this was built against. Run them
+	 * before that probe so the binary can always be verified, CI included.
+	 * With --solo the live tests follow later, once curl and the pool exist. */
+	if (argv_has(argc, argv, "--solo-selftest") && !argv_has(argc, argv, "--solo"))
+		proper_exit(solo_selftest() ? EXIT_CODE_SW_INIT_ERROR : EXIT_CODE_OK);
 
 	// number of gpus
 	active_gpus = cuda_num_devices();

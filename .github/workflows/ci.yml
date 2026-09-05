@@ -261,6 +261,10 @@ jobs:
           if (-not (Test-Path .\gbxminer.exe)) { throw "gbxminer.exe was not produced" }
           $mb = [math]::Round((Get-Item .\gbxminer.exe).Length / 1MB, 2)
           Write-Host "gbxminer.exe built, $mb MB"
+          # the offline vectors run before any CUDA probe, so a runner with no
+          # NVIDIA driver still exercises them
+          .\gbxminer.exe --solo-selftest
+          if ($LASTEXITCODE -ne 0) { throw "solo self-test failed" }
 
 
       - name: Upload artifact
