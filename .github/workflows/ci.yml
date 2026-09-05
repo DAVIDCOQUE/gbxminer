@@ -234,122 +234,25 @@ jobs:
           #
           # These env vars propagate into the MSYS2 shell via path-type:
           # inherit on the msys2/setup-msys2 step, so nvcc invocations
-          # spawned by make see the complete MSVC environment.
-      - name: Create space-free MSVC lib junction
-        run: |
-          # VCToolsInstallDir (set by ilammy/msvc-dev-cmd) contains spaces
-          # ("Program Files", "Microsoft Visual Studio").  Passing it directly
-          # in LDFLAGS causes shell word-splitting that breaks gcc's configure
-          # CC test.  Create a space-free junction at C:\msvc-libs — the same
-          # pattern used for C:\cuda.
-          $msvcLibs = Join-Path $env:VCToolsInstallDir "lib\x64"
-          if (-not (Test-Path $msvcLibs)) {
-              Write-Error "MSVC lib dir not found: $msvcLibs"
-              exit 1
-          }
-          New-Item -ItemType Junction -Path C:\msvc-libs -Target $msvcLibs | Out-Null
-          Write-Host "Junction: C:\msvc-libs -> $msvcLibs"
-
-      - name: Setup Windows build (MSYS2/MINGW64)
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          # path-type: inherit causes MSYS2 to convert and prepend the full
-          # Windows PATH (including GITHUB_PATH additions from prior steps)
-          # into the MSYS2 shell PATH.  Required so that nvcc.exe (a native
-          # Windows binary invoked by make) inherits a PATH that includes the
-          # MSVC directory added by the "Add MSVC cl.exe" step above.
-          # Without this, msys2/setup-msys2 defaults to path-type: minimal
-          # and strips all GITHUB_PATH additions.
-          path-type: inherit
-          # mingw-w64-x86_64-curl provides both the headers and libcurl.dll.a
-          # import library natively — no cross-compilation or external download
-          # required.  openssl, jansson, and zlib are likewise available in the
-          # pacman repository and link cleanly against the MINGW64 toolchain.
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-curl
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-jansson
-            mingw-w64-x86_64-zlib
-            autoconf
-            automake
-            libtool
-            make
-            pkg-config
-
-      - name: Configure build
-        shell: msys2 {0}
-        run: |
-          rm -f Makefile
-          ./autogen.sh
-          CUDA_PATH_MSYS=$(cygpath -m "$CUDA_HOME")
-          echo "CUDA path: $CUDA_PATH_MSYS"
-          # -ccbin cl.exe: ilammy/msvc-dev-cmd adds the MSVC bin directory to
-          #   GITHUB_PATH, which propagates into the MSYS2 PATH via path-type:
-          #   inherit.  A bare name is sufficient; no junction needed.
-          #   nvcc on Windows only accepts MSVC as host compiler; cl.exe output
-          #   passes the OS probe and accepts injected flags (-nologo, -EHsc).
-          # -allow-unsupported-compiler: suppresses the MSVC version gate.
-          #   windows-2025 ships VS 2022 17.13+, outside nvcc 12.8 validated
-          #   range [2019, 2022].
-          # -Wno-deprecated-gpu-targets: suppresses the pre-SM75 LTO warning.
-          #   SM50-62 targets remain valid for binary generation with nvcc 12.8.
-          # -Xcompiler /W3: MSVC warning level flag.  -Wall on cl.exe enables
-          #   /Wall (all warnings), producing excessive output.
-          # -Xcompiler /W3 omitted: MSYS2 converts any token starting with "/" as
-          # a POSIX path, expanding /W3 to D:/a/_temp/msys64/W3 before it
-          # reaches nvcc.  The default cl.exe warning level is acceptable.
-          # /EHs-c-: disable C++ EH tables (__GSHandlerCheck_EH4)
-          # /GS-:    disable buffer security cookie (__security_check_cookie)
-          # /GR-:    disable RTTI (eliminates ??_R4 type descriptor symbols)
-          CUDA_CFLAGS="-O3 -lineno -ccbin cl.exe -allow-unsupported-compiler -Wno-deprecated-gpu-targets -Xcompiler -EHs-c- -Xcompiler -GS- -Xcompiler -GR- -D_FORCE_INLINES" \
-          ./configure \
-            CXXFLAGS="-O3 -Wno-builtin-macro-redefined" \
-            PKG_CONFIG="pkg-config --static" \
-            --with-cuda="$CUDA_PATH_MSYS"
-
-      - name: Patch Makefile for MSVC and Windows runtime libs
-        shell: msys2 {0}
-        run: |
-          # Inject all Windows/MSVC runtime libs into the final link rule only.
-          # Cannot go in configure LDFLAGS (breaks conftest links).
-          #   vcruntime140 — vcruntime140.dll (__GSHandlerCheck*)
-          #   msvcp140     — msvcp140.dll (std::string, RTTI)
-          #   ucrt         — ucrtbase.dll (printf/fprintf from MSVC headers)
-          #   ws2_32       — winsock2 (__imp_WSA*, __imp_socket)
-          #   winmm        — multimedia (__imp_timeBeginPeriod)
-          sed -i 's|-lcuda\b|-LC:/cuda/lib/x64 -LC:/msvc-libs -LC:/winkits-ucrt -lcuda -lvcruntime -lvcruntime140 -lmsvcprt -lucrt -lws2_32 -lwinmm|g' Makefile
-
-          # HAVE_WINDOWS is not reliably set by configure in the MSYS2 cross
-          # environment, so winansi.c is excluded from the automake SOURCES.
-          # Compile it manually and inject the object into the link rule.
-          gcc -DHAVE_CONFIG_H -I. -I/mingw64/include -fno-strict-aliasing \
-              -g -O2 -o compat/gbxminer-winansi.o -c compat/winansi.c
-          # Write eq_iface_stub.cu using printf to avoid YAML heredoc issues.
-          mkdir -p equi
-          printf "#ifdef _WIN32\n" > equi/eq_iface_stub.cu
-          printf "#include \"eqcuda.hpp\"\n" >> equi/eq_iface_stub.cu
-          printf "void eq_cuda_context_interface" >> equi/eq_iface_stub.cu
-          printf "::solve(const char*,unsigned,const char*," >> equi/eq_iface_stub.cu
-          printf "unsigned,fn_cancel,fn_solution,fn_hashdone){}\n" >> equi/eq_iface_stub.cu
-          printf "#endif\n" >> equi/eq_iface_stub.cu
-          # Compile eq_iface_stub.cu with nvcc+cl.exe for MSVC vtable ABI stub.
-          C:/cuda/bin/nvcc.exe -ccbin cl.exe -allow-unsupported-compiler \
-            -Wno-deprecated-gpu-targets -D_WIN32 -I. -IC:/cuda/include \
-            -Xcompiler -EHs-c- -Xcompiler -GS- -Xcompiler -GR- \
-            --std=c++14 -o equi/eq_iface_stub.o -c equi/eq_iface_stub.cu
-          # Append both objects to gbxminer_LDADD.
-          sed -i "s|^gbxminer_LDADD = |gbxminer_LDADD = compat/gbxminer-winansi.o equi/eq_iface_stub.o |" Makefile
-
+      # nvcc on Windows only accepts MSVC as its host compiler, so a MinGW
+      # build mixes two C++ ABIs and two C runtimes in one binary: the symbols
+      # never match, and when they are forced to, the process dies during
+      # startup. build-windows-msvc.bat compiles everything with MSVC instead,
+      # against the import libraries already vendored in compat/.
       - name: Build
-        shell: msys2 {0}
-        run: make -j4
+        shell: cmd
+        env:
+          CUDA_DIR: C:\cuda
+          GPU_ARCH: compute_86
+        run: build-windows-msvc.bat
 
       - name: Verify binary
-        shell: msys2 {0}
-        run: file ./gbxminer.exe
+        shell: pwsh
+        run: |
+          if (-not (Test-Path .\gbxminer.exe)) { throw "gbxminer.exe was not produced" }
+          $mb = [math]::Round((Get-Item .\gbxminer.exe).Length / 1MB, 2)
+          Write-Host "gbxminer.exe built, $mb MB"
+
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
