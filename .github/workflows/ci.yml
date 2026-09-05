@@ -178,13 +178,14 @@ jobs:
       - name: Setup CUDA on Windows
         run: |
           $ErrorActionPreference = "Stop"
-          # Not the workflow-wide CUDA_VERSION: 12.8 refuses the MSVC that
-          # windows-2025 ships (_MSC_VER >= 1945 fails its host_config.h gate),
-          # and the toolset that would satisfy it is not installed. 13.0 accepts
-          # anything below 1950. Its download path carries the full three-part
+          # Not the workflow-wide CUDA_VERSION. windows-2025 ships the Visual
+          # Studio 2026 compiler (_MSC_VER 1951), and only its newest toolset,
+          # so an older one cannot be pinned. 12.8 caps at 1945 and 13.0 at
+          # 1950; 13.3 is the first release whose supported-compiler table
+          # lists MSVC 195x. Its download path carries the full three-part
           # version and no driver number, unlike the 12.x layout.
-          $cudaVersion = "13.0.0"
-          $cudaDirVersion = "13.0"
+          $cudaVersion = "13.3.1"
+          $cudaDirVersion = "13.3"
           $cudaInstaller = "cuda_${cudaVersion}_windows.exe"
           $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${cudaVersion}/local_installers/$cudaInstaller"
           Write-Host "Downloading CUDA from: $cudaUrl"
