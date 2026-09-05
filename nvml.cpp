@@ -1670,9 +1670,12 @@ int nvapi_set_gpuclock(unsigned int devNum, uint32_t clock)
 	ret = NvAPI_GPU_GetBusId(phys[devNum], &busId);
 	for (int d=0; d < (int) nvapi_dev_cnt; d++) {
 		 // unsure about devNum, so be safe
+		int clock_khz = 0;
 		cudaGetDeviceProperties(&props, d);
 		if (props.pciBusID == busId) {
-			delta = (clock * 1000) - props.clockRate;
+			/* clockRate left cudaDeviceProp in CUDA 13, see cuda.cpp */
+			cudaDeviceGetAttribute(&clock_khz, cudaDevAttrClockRate, d);
+			delta = (clock * 1000) - clock_khz;
 			break;
 		}
 	}

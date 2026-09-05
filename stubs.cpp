@@ -127,11 +127,12 @@ void x11evo_hash(void* output, const void* input) { }
 void zr5hash(void* output, const void* input) { }
 void sonoa_hash(void* output, const void* input) { }
 
-bool opt_scratchpad_url = false;
+/* types must match the real declarations: MSVC encodes them in the symbol */
+char *opt_scratchpad_url = NULL;
 
 bool rpc2_stratum_authorize(struct stratum_ctx *sctx, const char *user, const char *pass) { return false; }
 bool rpc2_stratum_job(struct stratum_ctx *sctx, json_t *id, json_t *params) { return false; }
-bool rpc2_stratum_thread_stuff(struct pool_infos *pool) { return false; }
+int rpc2_stratum_thread_stuff(struct pool_infos *pool) { return 0; }
 
 unsigned long scratchpad_size = 0;
 void GetScratchpad() { }

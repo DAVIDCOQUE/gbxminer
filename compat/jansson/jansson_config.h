@@ -22,7 +22,10 @@
    supported. */
 
 #ifdef _MSC_VER
+#if !defined(__cplusplus)
+/* not in C++: <xkeycheck.h> rejects macroising the keyword */
 #define inline __inline
+#endif
 #if !defined(HAVE_STRUCT_TIMESPEC) && _MSC_VER >= 1900
 #define HAVE_STRUCT_TIMESPEC
 #endif

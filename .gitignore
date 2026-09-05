@@ -108,3 +108,10 @@ build/
 # Test output
 test_output/
 *.log
+
+# MSVC Windows build
+gbxminer.exe
+gbxminer.exp
+gbxminer.lib
+obj-msvc/
+solo_block_*.hex

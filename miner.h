@@ -20,27 +20,20 @@ extern "C" {
  *
  * struct timeval  — provided by <winsock2.h> (Windows SDK)
  * struct timespec — provided by <time.h>     (MSVC 2015+)
- * pthread types   — opaque void* stubs; structs that embed them are
- *                   host-only and are never allocated in device code.
- * json_t / CURL   — forward declarations; always used as pointers.
+ * pthread / json_t / CURL — taken from compat/pthreads, compat/jansson and
+ *                   curl-for-windows, all on the MSVC include path. Stubbing
+ *                   them here collided with the real headers, which any TU
+ *                   that talks JSON or HTTP has to include anyway.
  */
 # ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
 # endif
 # include <winsock2.h>
 # include <time.h>
-typedef void *pthread_t;
-typedef void *pthread_mutex_t;
-typedef void *pthread_rwlock_t;
-typedef void *pthread_cond_t;
-typedef void *pthread_attr_t;
-typedef struct json_t      json_t;
-typedef struct json_error_t json_error_t;
-typedef void               CURL;
-# ifndef CURL_ERROR_SIZE
-#  define CURL_ERROR_SIZE 256
-# endif
-typedef SOCKET curl_socket_t;
+# include <sys/time.h>
+# include <pthread.h>
+# include <jansson.h>
+# include <curl/curl.h>
 #else
 # include <sys/time.h>
 # include <pthread.h>
@@ -484,6 +477,8 @@ struct work_restart {
 
 #if defined(HAVE_GETOPT_LONG) && !defined(_MSC_VER)
 #include <getopt.h>
+#elif defined(_GETOPT_H_)
+/* compat/getopt/getopt.h, pulled in by compat/unistd.h, already has it */
 #else
 struct option {
 	const char *name;
