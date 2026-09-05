@@ -316,6 +316,8 @@ Options:\n\
       --solo-cookie=F   path to the Bitcoin Core .cookie file used for RPC auth\n\
       --solo-refresh=N  seconds between block template refreshes (default 20)\n\
       --solo-selftest   run the solo mining self-tests and exit\n\
+      --solo-test-diff=N  regtest only: mine at difficulty N instead of the\n\
+                        network target\n\
       --no-longpoll     disable X-Long-Polling support\n\
       --no-stratum      disable X-Stratum support\n\
       --no-extranonce   disable extranonce subscribe on stratum\n\
@@ -408,6 +410,7 @@ struct option options[] = {
 	{ "solo-cookie", 1, NULL, 1203 },
 	{ "solo-refresh", 1, NULL, 1204 },
 	{ "solo-selftest", 0, NULL, 1205 },
+	{ "solo-test-diff", 1, NULL, 1206 },
 	{ "no-stratum", 0, NULL, 1007 },
 	{ "no-autotune", 0, NULL, 1004 },  // scrypt
 	{ "interactive", 1, NULL, 1050 },  // scrypt
@@ -3218,6 +3221,9 @@ void parse_arg(int key, char *arg)
 		break;
 	case 1205:
 		opt_solo_selftest = true;
+		break;
+	case 1206:
+		opt_solo_test_diff = atof(arg);
 		break;
 	case 1012:
 		opt_extranonce = false;

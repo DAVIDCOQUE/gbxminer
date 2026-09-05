@@ -30,6 +30,8 @@ extern char *opt_solo_scriptpubkey;
 extern char *opt_solo_cookie;
 /* seconds before a cached block template is refetched */
 extern int   opt_solo_refresh;
+/* testing only: mine at this difficulty instead of the network target */
+extern double opt_solo_test_diff;
 
 /* Resolve the payout scriptPubKey and the RPC credentials. Called once, after
  * the pool array is initialised, because cookie auth is injected into it. */

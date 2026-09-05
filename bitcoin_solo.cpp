@@ -34,6 +34,7 @@ char *opt_solo_address = NULL;
 char *opt_solo_scriptpubkey = NULL;
 char *opt_solo_cookie = NULL;
 int   opt_solo_refresh = 20;
+double opt_solo_test_diff = 0.;
 
 /* ---------------------------------------------------------------- state -- */
 
@@ -417,6 +418,14 @@ bool solo_get_work(CURL *curl, struct work *work)
 	work->data[31] = 0x00000280;
 
 	memcpy(work->target, tpl->target, sizeof(work->target));
+	if (opt_solo_test_diff > 0.) {
+		/* The SHA256d kernel prefilters on the top 64 bits of the hash against
+		 * target[6] alone, so it never fires on a chain whose target[7] is
+		 * non-zero (regtest, signet). Handing it a stricter target makes it
+		 * report nonces; the blocks stay valid because a hash below a tighter
+		 * target is also below the real one. */
+		diff_to_target(work->target, opt_solo_test_diff);
+	}
 	work->targetdiff = target_to_diff(work->target);
 	work->height = tpl->height;
 	work->solo_id = job->id;
@@ -435,6 +444,26 @@ bool solo_get_work(CURL *curl, struct work *work)
 }
 
 /* --------------------------------------------------------------- submit -- */
+
+/* json_rpc_call() rejects a JSON-null "result", which is exactly what a
+ * successful submitblock returns, so its verdict cannot be trusted here. The
+ * node's own tip is the only unambiguous answer. */
+static bool solo_tip_is(CURL *curl, const char *blockid)
+{
+	static const char *req =
+		"{\"method\":\"getbestblockhash\",\"params\":[],\"id\":5}\r\n";
+	json_t *val = solo_rpc(curl, req, "getbestblockhash");
+	json_t *res;
+	bool same = false;
+
+	if (!val)
+		return false;
+	res = json_object_get(val, "result");
+	if (res && json_is_string(res))
+		same = !strcmp(json_string_value(res), blockid);
+	json_decref(val);
+	return same;
+}
 
 static void solo_dump_block(const uint8_t *blk, size_t len, uint32_t height)
 {
@@ -548,31 +577,36 @@ bool solo_submit_block(CURL *curl, struct work *work)
 	applog(LOG_NOTICE, "solo: submitting block %u (%u tx, %lu bytes) %s",
 		tpl->height, tpl->tx_count + 1, (unsigned long) blklen, blockid);
 
-	val = solo_rpc(curl, req, "submitblock");
+	/* not solo_rpc(): a successful submitblock trips its error path */
+	val = json_rpc_call_pool(curl, &pools[cur_pooln], req, false, false, NULL);
 	free(req);
 
-	if (!val) {
-		job_unref(job);
-		return false;           /* transport problem, worth retrying */
-	}
+	accepted = solo_tip_is(curl, blockid);
 
-	/* submitblock answers with JSON null on success, never with true */
-	res = json_object_get(val, "result");
-	err = json_object_get(val, "error");
-	if ((!res || json_is_null(res)) && (!err || json_is_null(err))) {
-		accepted = true;
-	} else if (res && json_is_string(res)) {
-		const char *reason = json_string_value(res);
-		applog(LOG_WARNING, "solo: block %u rejected: %s", tpl->height, reason);
-		/* the chain moved on between finding and sending; not our bug */
-		if (!strcmp(reason, "duplicate") || !strcmp(reason, "inconclusive") ||
-		    !strcmp(reason, "duplicate-inconclusive"))
-			applog(LOG_INFO, "solo: another block for this height arrived first");
-	} else {
-		applog(LOG_WARNING, "solo: block %u rejected with an unexpected reply",
-			tpl->height);
+	if (!accepted && val) {
+		res = json_object_get(val, "result");
+		err = json_object_get(val, "error");
+		if (res && json_is_string(res)) {
+			const char *reason = json_string_value(res);
+			applog(LOG_WARNING, "solo: block %u rejected: %s", tpl->height, reason);
+			/* the chain moved on between finding and sending; not our bug */
+			if (!strcmp(reason, "duplicate") || !strcmp(reason, "inconclusive") ||
+			    !strcmp(reason, "duplicate-inconclusive"))
+				applog(LOG_INFO, "solo: another block for this height arrived first");
+		} else if (err && !json_is_null(err)) {
+			json_t *msg = json_object_get(err, "message");
+			applog(LOG_WARNING, "solo: block %u rejected: %s", tpl->height,
+				msg && json_is_string(msg) ? json_string_value(msg) : "unknown error");
+		} else {
+			applog(LOG_WARNING, "solo: block %u did not become the chain tip",
+				tpl->height);
+		}
+	} else if (!accepted) {
+		applog(LOG_WARNING, "solo: block %u submission got no reply and did not "
+			"become the chain tip", tpl->height);
 	}
-	json_decref(val);
+	if (val)
+		json_decref(val);
 
 	if (accepted) {
 		pools[work->pooln].accepted_count++;
@@ -681,6 +715,10 @@ bool solo_init(void)
 
 	if (opt_solo_refresh < 1)
 		opt_solo_refresh = 1;
+
+	if (opt_solo_test_diff > 0.)
+		applog(LOG_WARNING, "solo: mining at test difficulty %g, not the network "
+			"target; only useful on regtest", opt_solo_test_diff);
 
 	return solo_setup_auth();
 }

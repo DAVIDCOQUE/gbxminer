@@ -115,6 +115,18 @@ size_t solo_push_scriptnum(uint8_t *out, uint32_t n)
 	size_t len = 0;
 	uint32_t v = n;
 
+	/* Bitcoin Core checks BIP34 by rebuilding CScript() << nHeight and
+	 * comparing bytes, so this has to match CScript::operator<< exactly:
+	 * 0 and 1..16 collapse to the OP_0/OP_N opcodes rather than a push. */
+	if (n == 0) {
+		out[0] = 0x00;                  /* OP_0 */
+		return 1;
+	}
+	if (n <= 16) {
+		out[0] = (uint8_t)(0x50 + n);   /* OP_1 .. OP_16 */
+		return 1;
+	}
+
 	/* CScriptNum: little-endian magnitude, sign bit in the top byte. A value
 	 * whose high bit is set needs a trailing zero so it stays positive.
 	 * Not a CompactSize: BIP34 requires the height as a script number. */
@@ -616,7 +628,11 @@ static void test_scriptnum(void)
 {
 	uint8_t b[6];
 	printf("BIP34 height push\n");
-	check(solo_push_scriptnum(b, 1) == 2 && hexeq(b, 2, "0101"), "1");
+	/* CScript() << n collapses 0 and 1..16 into single opcodes */
+	check(solo_push_scriptnum(b, 0) == 1 && hexeq(b, 1, "00"), "0 is OP_0");
+	check(solo_push_scriptnum(b, 1) == 1 && hexeq(b, 1, "51"), "1 is OP_1");
+	check(solo_push_scriptnum(b, 16) == 1 && hexeq(b, 1, "60"), "16 is OP_16");
+	check(solo_push_scriptnum(b, 17) == 2 && hexeq(b, 2, "0111"), "17 is a push");
 	check(solo_push_scriptnum(b, 127) == 2 && hexeq(b, 2, "017f"), "127");
 	check(solo_push_scriptnum(b, 128) == 3 && hexeq(b, 3, "028000"), "128 needs pad");
 	check(solo_push_scriptnum(b, 255) == 3 && hexeq(b, 3, "02ff00"), "255 needs pad");
