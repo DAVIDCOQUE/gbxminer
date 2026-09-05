@@ -178,9 +178,15 @@ jobs:
       - name: Setup CUDA on Windows
         run: |
           $ErrorActionPreference = "Stop"
-          $cudaVersion = "${{ env.CUDA_VERSION }}"
-          $cudaInstaller = "cuda_${cudaVersion}.0_571.96_windows.exe"
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${cudaVersion}.0/local_installers/$cudaInstaller"
+          # Not the workflow-wide CUDA_VERSION: 12.8 refuses the MSVC that
+          # windows-2025 ships (_MSC_VER >= 1945 fails its host_config.h gate),
+          # and the toolset that would satisfy it is not installed. 13.0 accepts
+          # anything below 1950. Its download path carries the full three-part
+          # version and no driver number, unlike the 12.x layout.
+          $cudaVersion = "13.0.0"
+          $cudaDirVersion = "13.0"
+          $cudaInstaller = "cuda_${cudaVersion}_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${cudaVersion}/local_installers/$cudaInstaller"
           Write-Host "Downloading CUDA from: $cudaUrl"
           Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
 
@@ -195,7 +201,7 @@ jobs:
           # Verify the install actually produced the expected tree before
           # proceeding.  The CUDA installer exits 0 even on partial failure,
           # so an explicit path check is the only reliable gate.
-          $cudaReal = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+          $cudaReal = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaDirVersion"
           if (-not (Test-Path $cudaReal)) {
               Write-Error "CUDA install did not produce expected directory: $cudaReal"
               exit 1
@@ -220,8 +226,6 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          # CUDA 12.8 rejects _MSC_VER >= 1945; 14.39 is VS 17.9 (1939)
-          toolset: '14.39'
           # ilammy/msvc-dev-cmd runs VsDevCmd.bat and exports every MSVC
           # environment variable (INCLUDE, LIB, LIBPATH, VCToolsInstallDir,
           # WindowsSdkDir, etc.) to GITHUB_ENV, and adds the MSVC bin
