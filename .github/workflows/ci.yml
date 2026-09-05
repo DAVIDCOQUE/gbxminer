@@ -220,6 +220,8 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+          # CUDA 12.8 rejects _MSC_VER >= 1945; 14.39 is VS 17.9 (1939)
+          toolset: '14.39'
           # ilammy/msvc-dev-cmd runs VsDevCmd.bat and exports every MSVC
           # environment variable (INCLUDE, LIB, LIBPATH, VCToolsInstallDir,
           # WindowsSdkDir, etc.) to GITHUB_ENV, and adds the MSVC bin
@@ -244,7 +246,9 @@ jobs:
         env:
           CUDA_DIR: C:\cuda
           GPU_ARCH: compute_86
-        run: build-windows-msvc.bat
+        run: |
+          cl 2>&1 | findstr /C:"Version"
+          build-windows-msvc.bat
 
       - name: Verify binary
         shell: pwsh
