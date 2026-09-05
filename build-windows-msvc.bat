@@ -29,7 +29,7 @@ if not exist "%CUDA_DIR%\bin\nvcc.exe" (echo error: no nvcc under %CUDA_DIR% & e
 
 set OSSL=%REPO%compat\curl-for-windows\openssl\openssl\include
 set INC=/I "%REPO%." /I "%REPO%compat" /I "%REPO%compat\jansson" /I "%REPO%compat\curl-for-windows\curl\include" /I "%OSSL%" /I "%REPO%compat\pthreads" /I "%CUDA_DIR%\include"
-set DEF=/DWIN32 /DNDEBUG /D_CONSOLE /D_CRT_SECURE_NO_WARNINGS /DCURL_STATICLIB /DUSE_WRAPNVML /DHAVE_CONFIG_H
+set DEF=/DWIN32 /DNDEBUG /D_CONSOLE /D_CRT_SECURE_NO_WARNINGS /DCURL_STATICLIB /DUSE_WRAPNVML /DHAVE_CONFIG_H /DSOLO_SHA256D_ONLY
 set CF=/nologo /c /O2 /EHsc /MT /W1 /GS-
 
 cd /d "%REPO%"

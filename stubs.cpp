@@ -138,8 +138,10 @@ unsigned long scratchpad_size = 0;
 void GetScratchpad() { }
 
 /* --- algorithms excluded from the SHA256d-only Windows build --- */
-/* Kept as no-ops so the algo dispatch in gbxminer.cpp still links when
- * only the SHA256d sources are compiled; see Makefile.am. */
+/* Only for a build that leaves those sources out (see build-windows-msvc.bat).
+ * A full build compiles the real implementations, and defining them here too
+ * would be a duplicate symbol at link time. */
+#ifdef SOLO_SHA256D_ONLY
 
 int scanhash_allium(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
 int scanhash_autolykos2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
@@ -192,3 +194,4 @@ void lyra2v2_hash(void *state, const void *input) { }
 void lyra2v3_hash(void *state, const void *input) { }
 void nist5hash(void *state, const void *input) { }
 void neoscrypt(uchar *output, const uchar *input, uint32_t profile) { }
+#endif /* SOLO_SHA256D_ONLY */

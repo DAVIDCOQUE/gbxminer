@@ -84,6 +84,8 @@ static uint64_t g_extranonce = 0;
 static bool     g_force_refresh = false;
 static uint32_t g_last_announced = 0;
 
+static bool solo_reload_cookie(void);
+
 /* ------------------------------------------------------------ lifecycle -- */
 
 static void tpl_unref(struct solo_template *t)
@@ -377,6 +379,8 @@ bool solo_get_work(CURL *curl, struct work *work)
 	if (!g_tpl || g_force_refresh ||
 	    (now - g_tpl->fetched_at) >= opt_solo_refresh) {
 		struct solo_template *t = solo_fetch_template(curl);
+		if (!t && solo_reload_cookie())
+			t = solo_fetch_template(curl);
 		if (t) {
 			if (g_tpl)
 				tpl_unref(g_tpl);
@@ -623,6 +627,8 @@ bool solo_submit_block(CURL *curl, struct work *work)
 
 /* ----------------------------------------------------------------- init -- */
 
+static char g_cookie_path[512];
+
 static bool solo_load_cookie(const char *path)
 {
 	struct pool_infos *pool = &pools[cur_pooln];
@@ -644,9 +650,41 @@ static bool solo_load_cookie(const char *path)
 		return false;
 	*sep = '\0';
 
-	snprintf(pool->user, sizeof(pool->user), "%s", line);
-	snprintf(pool->pass, sizeof(pool->pass), "%s", sep + 1);
+	/* refuse rather than truncate: a silently shortened password only shows up
+	 * later as a 401, which is far harder to trace back to here */
+	if (strlen(line) >= sizeof(pool->user) ||
+	    strlen(sep + 1) >= sizeof(pool->pass)) {
+		applog(LOG_ERR, "solo: credentials in %s do not fit", path);
+		return false;
+	}
+	strcpy(pool->user, line);
+	strcpy(pool->pass, sep + 1);
+
+	snprintf(g_cookie_path, sizeof(g_cookie_path), "%s", path);
 	applog(LOG_INFO, "solo: using RPC cookie %s", path);
+	return true;
+}
+
+/* Bitcoin Core writes a fresh .cookie on every start, which silently
+ * invalidates the credentials a long-running miner holds. Re-read it before
+ * giving up on a failed call; returns true only if it actually changed. */
+static bool solo_reload_cookie(void)
+{
+	struct pool_infos *pool = &pools[cur_pooln];
+	char olduser[sizeof(pool->user)], oldpass[sizeof(pool->pass)];
+
+	if (!g_cookie_path[0])
+		return false;
+
+	snprintf(olduser, sizeof(olduser), "%s", pool->user);
+	snprintf(oldpass, sizeof(oldpass), "%s", pool->pass);
+
+	if (!solo_load_cookie(g_cookie_path))
+		return false;
+	if (!strcmp(olduser, pool->user) && !strcmp(oldpass, pool->pass))
+		return false;
+
+	applog(LOG_INFO, "solo: RPC cookie was rotated, credentials reloaded");
 	return true;
 }
 
