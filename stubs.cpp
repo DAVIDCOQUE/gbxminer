@@ -135,3 +135,59 @@ bool rpc2_stratum_thread_stuff(struct pool_infos *pool) { return false; }
 
 unsigned long scratchpad_size = 0;
 void GetScratchpad() { }
+
+/* --- algorithms excluded from the SHA256d-only Windows build --- */
+/* Kept as no-ops so the algo dispatch in gbxminer.cpp still links when
+ * only the SHA256d sources are compiled; see Makefile.am. */
+
+int scanhash_allium(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_autolykos2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_bmw(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_equihash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_etchash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_firopow(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_fugue256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_jackpot(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_jha(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_kawpow(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_kheavyhash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_lbry(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_lyra2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_lyra2Z(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_lyra2v2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_lyra2v3(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_neoscrypt(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_nist5(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+int scanhash_zelhash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done) { return 0; }
+
+void free_allium(int thr_id) { }
+void free_autolykos2(int thr_id) { }
+void free_bmw(int thr_id) { }
+void free_equihash(int thr_id) { }
+void free_etchash(int thr_id) { }
+void free_firopow(int thr_id) { }
+void free_fugue256(int thr_id) { }
+void free_jackpot(int thr_id) { }
+void free_jha(int thr_id) { }
+void free_kawpow(int thr_id) { }
+void free_keccak256(int thr_id) { }
+void free_kheavyhash(int thr_id) { }
+void free_lbry(int thr_id) { }
+void free_lyra2(int thr_id) { }
+void free_lyra2Z(int thr_id) { }
+void free_lyra2v2(int thr_id) { }
+void free_lyra2v3(int thr_id) { }
+void free_neoscrypt(int thr_id) { }
+void free_nist5(int thr_id) { }
+void free_zelhash(int thr_id) { }
+
+void allium_hash(void *state, const void *input) { }
+void bmw_hash(void *state, const void *input) { }
+void jha_hash(void *output, const void *input) { }
+void keccak256_hash(void *state, const void *input) { }
+void lbry_hash(void *output, const void *input) { }
+void lyra2v2_hash(void *state, const void *input) { }
+void lyra2v3_hash(void *state, const void *input) { }
+void nist5hash(void *state, const void *input) { }
+void neoscrypt(uchar *output, const uchar *input, uint32_t profile) { }

@@ -1997,7 +1997,13 @@ __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::eq_cuda_context(int thr_
 		checkCudaDriverErrors(_cuCtxPushCurrent(pctx));
 #else
 		checkCudaDriverErrors(cuDeviceGet(&dev, device_id));
+#if CUDA_VERSION >= 13000
+		/* CUDA 13 remaps cuCtxCreate to the v4 entry point, which takes a CUctxCreateParams
+		 * argument; a null one keeps the previous default behaviour */
+		checkCudaDriverErrors(cuCtxCreate(&pctx, NULL, CU_CTX_SCHED_BLOCKING_SYNC, dev));
+#else
 		checkCudaDriverErrors(cuCtxCreate(&pctx, CU_CTX_SCHED_BLOCKING_SYNC, dev));
+#endif
 		checkCudaDriverErrors(cuCtxPushCurrent(pctx));
 #endif
 	}

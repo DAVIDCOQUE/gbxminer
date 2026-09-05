@@ -1652,7 +1652,7 @@ static bool stratum_get_algo(struct stratum_ctx *sctx, json_t *id, json_t *param
 
 #include "nvml.h"
 extern char driver_version[32];
-extern int cuda_arch[MAX_GPUS];
+extern "C" int cuda_arch[MAX_GPUS];
 
 void gpu_increment_reject(int thr_id)
 {

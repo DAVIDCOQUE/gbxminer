@@ -26,7 +26,7 @@
 extern "C" short device_map[MAX_GPUS];
 extern "C"  long device_sm[MAX_GPUS];
 extern "C" short device_mpcount[MAX_GPUS];
-extern int cuda_arch[MAX_GPUS];
+extern "C" int cuda_arch[MAX_GPUS];  /* C linkage: read from g++ TUs, defined by nvcc */
 
 // common functions
 extern int cuda_get_arch(int thr_id);

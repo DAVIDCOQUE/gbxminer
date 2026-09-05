@@ -273,7 +273,7 @@ uint32_t cuda_check_hash_branch(int thr_id, uint32_t threads, uint32_t startNoun
 }
 
 /* Function to get the compiled Shader Model version */
-int cuda_arch[MAX_GPUS] = { 0 };
+extern "C" int cuda_arch[MAX_GPUS] = { 0 };
 __global__ void nvcc_get_arch(int *d_version)
 {
 	*d_version = 0;
